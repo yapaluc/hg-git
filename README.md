@@ -2,12 +2,30 @@
 
 ## Installation
 
+Install via Homebrew:
+
 ```
 brew tap yapaluc/hg-git
 brew install hg-git
 ```
 
-It is recommended to alias `hg-git` to `hg` in your `.bashrc` or `.zshrc` for easier use.
+It is recommended to alias `hg-git` to `hg` in your `.bashrc` or `.zshrc` for easier use:
+
+```
+alias hg="hg-git"
+```
+
+### Upgrade
+
+```
+brew upgrade hg-git
+```
+
+### Uninstall
+
+```
+brew uninstall hg-git
+```
 
 ## Usage
 
