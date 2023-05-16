@@ -31,7 +31,7 @@ brew uninstall hg-git
 
 ```
 $ hg
-hg is set of commands for emulating a subset of Mercurial commands on a Git repository, as well as interacting with GitHub Pull Requests.
+hg is a set of commands for emulating a subset of Mercurial commands on a Git repository, as well as interacting with GitHub Pull Requests.
 
 Usage:
   hg [command]
