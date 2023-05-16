@@ -11,7 +11,7 @@ import (
 func Execute() {
 	rootCmd := &cobra.Command{
 		Use:   "hg",
-		Short: "hg is set of commands for emulating a subset of Mercurial commands on a Git repository, as well as interacting with GitHub Pull Requests.",
+		Short: "hg is a set of commands for emulating a subset of Mercurial commands on a Git repository, as well as interacting with GitHub Pull Requests.",
 	}
 	rootCmd.AddCommand(
 		newAddCmd(),
