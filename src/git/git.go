@@ -46,8 +46,11 @@ func GetRemoteURL() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getting remote url: %w", err)
 	}
+	remoteURL = strings.TrimSpace(remoteURL)
+	remoteURL = strings.TrimSuffix(remoteURL, ".git")
+	remoteURL = strings.TrimSuffix(remoteURL, "/")
 
-	return strings.TrimSpace(remoteURL), nil
+	return remoteURL, nil
 }
 
 // Resolves the given string to a branch name.
@@ -157,7 +160,7 @@ func (cm *commitMetadata) PRURL() (string, string) {
 		// Suppress this error in case there is no remote.
 		return "", ""
 	}
-	prURL := fmt.Sprintf("%spull/%d", remoteURL, prNum)
+	prURL := fmt.Sprintf("%s/pull/%d", remoteURL, prNum)
 	linkText := fmt.Sprintf("#%d", prNum)
 	return prURL, linkText
 }

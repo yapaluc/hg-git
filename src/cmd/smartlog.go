@@ -168,7 +168,6 @@ func getNodeSummary(node *git.TreeNode, currBranch string) ([]string, error) {
 	prURL, prURLText := commitMetadata.PRURL()
 	if prURL != "" && prURLText != "" {
 		firstLine += color.New(color.Bold).Sprintf("%s  ", util.Linkify(prURLText, prURL))
-		// firstLine += fmt.Sprintf("%s  ", util.Linkify(prURLText, prURL))
 	}
 	firstLine += commitMetadata.TimestampRelative
 
