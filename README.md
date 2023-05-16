@@ -1,13 +1,18 @@
-# Installation
+# hg-git
 
-TODO - homebrew
-
-It is recommended to alias `hg-go` to `hg` in your `.bashrc` or `.zshrc` for easier use.
-
-# Usage
+## Installation
 
 ```
-$ hggo
+brew tap yapaluc/hg-git
+brew install hg-git
+```
+
+It is recommended to alias `hg-git` to `hg` in your `.bashrc` or `.zshrc` for easier use.
+
+## Usage
+
+```
+$ hg
 hg is set of commands for emulating a subset of Mercurial commands on a Git repository, as well as interacting with GitHub Pull Requests.
 
 Usage:
@@ -40,15 +45,15 @@ Flags:
 Use "hg [command] --help" for more information about a command.
 ```
 
-# Development
+## Development
 
-## Install golang
+### Install golang
 
 ```
 brew update && brew install golang
 ```
 
-## Manage dependencies
+### Manage dependencies
 
 Adding dependencies:
 
@@ -62,19 +67,19 @@ Cleanup dependencies:
 go mod tidy && go mod download
 ```
 
-## Building
+### Building
 
 ```
 go build -o bin/hg-git main.go
 ```
 
-## Running
+### Running
 
 ```
 go run main.go
 ```
 
-## Formatter
+### Formatter
 
 Installation:
 
@@ -82,7 +87,7 @@ Installation:
 go install github.com/segmentio/golines@latest
 ```
 
-## Release
+### Release
 
 Install goreleaser:
 
