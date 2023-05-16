@@ -333,14 +333,13 @@ func (rd *RepoData) buildBranchGraph() error {
 			}
 			branchName := depthToBranchName[i]
 			if prevCommitHash, ok := branchNameToPrevCommitHash[branchName]; ok {
-				if _, found := shortCommitHashToChildren[shortCommitHash][prevCommitHash]; found {
-					continue
+				if _, found := shortCommitHashToChildren[shortCommitHash][prevCommitHash]; !found {
+					if shortCommitHashToChildren[shortCommitHash] == nil {
+						shortCommitHashToChildren[shortCommitHash] = make(map[string]struct{})
+					}
+					shortCommitHashToChildren[shortCommitHash][prevCommitHash] = struct{}{}
+					shortCommitHashToInDeg[prevCommitHash]++
 				}
-				if shortCommitHashToChildren[shortCommitHash] == nil {
-					shortCommitHashToChildren[shortCommitHash] = make(map[string]struct{})
-				}
-				shortCommitHashToChildren[shortCommitHash][prevCommitHash] = struct{}{}
-				shortCommitHashToInDeg[prevCommitHash]++
 			}
 			branchNameToPrevCommitHash[branchName] = shortCommitHash
 		}
