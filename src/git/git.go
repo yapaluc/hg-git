@@ -53,6 +53,23 @@ func GetRemoteURL() (string, error) {
 	return remoteURL, nil
 }
 
+func ResolveRev(rev string) (string, error) {
+	if rev == ".^" {
+		// Find the previous branch.
+		repoData, err := NewRepoData()
+		if err != nil {
+			return "", err
+		}
+
+		currBranch, err := GetCurrentBranch()
+		if err != nil {
+			return "", err
+		}
+		rev = repoData.BranchNameToNode[currBranch].BranchParent.CommitMetadata.CommitHash
+	}
+	return rev, nil
+}
+
 // Resolves the given string to a branch name.
 // The string can be a branch name itself.
 // It can also be a commit hash pointing a commit with a branch name.

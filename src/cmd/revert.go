@@ -32,24 +32,15 @@ func runRevert(args []string, rev string) error {
 
 	// Revert to a given revision.
 	if rev != "" {
-		if rev == ".^" {
-			// Find the previous branch.
-			repoData, err := git.NewRepoData()
-			if err != nil {
-				return err
-			}
-
-			currBranch, err := git.GetCurrentBranch()
-			if err != nil {
-				return err
-			}
-			rev = repoData.BranchNameToNode[currBranch].BranchParent.CommitMetadata.CommitHash
+		resolvedRev, err := git.ResolveRev(rev)
+		if err != nil {
+			return fmt.Errorf("resolving rev %q: %w", rev, err)
 		}
-		_, err := shell.Run(
+		_, err = shell.Run(
 			shell.Opt{StreamOutputToStdout: true},
 			fmt.Sprintf(
 				"git restore -s %s %s",
-				rev,
+				resolvedRev,
 				strings.Join(
 					lo.Map(filepaths, func(f string, _ int) string { return shellescape.Quote(f) }),
 					" ",
