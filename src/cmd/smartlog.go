@@ -128,6 +128,10 @@ func sortedChildren(node *git.TreeNode) []*git.TreeNode {
 			// Master should appear at depth 0.
 			return true
 		}
+		if children[j].CommitMetadata.IsMaster {
+			// Master should appear at depth 0.
+			return false
+		}
 		return children[i].CommitMetadata.Timestamp < children[j].CommitMetadata.Timestamp
 	})
 	return children
