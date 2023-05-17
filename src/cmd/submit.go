@@ -295,7 +295,7 @@ func createPR(
 	}
 
 	prURL, err := shell.Run(
-		shell.Opt{},
+		shell.Opt{StripTrailingNewline: true},
 		fmt.Sprintf("gh pr create %s", strings.Join(args, " ")),
 	)
 	if err != nil {
@@ -394,7 +394,7 @@ func getUpdatedPRBody(
 		newPreviousPR = parentPRData.URL
 	}
 	if prBody.PreviousPR != "" {
-		previousPRData, err := cfg.gh.FetchPRByURL(prBody.PreviousPR)
+		previousPRData, err := cfg.gh.FetchPRByURLOrNum(prBody.PreviousPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching previous PR at URL %q: %w", prBody.PreviousPR, err)
 		}
@@ -406,7 +406,7 @@ func getUpdatedPRBody(
 
 	// Remove the "Next" annotation if its base branch is not pointing to this branch.
 	if prBody.NextPR != "" {
-		nextPRData, err := cfg.gh.FetchPRByURL(prBody.NextPR)
+		nextPRData, err := cfg.gh.FetchPRByURLOrNum(prBody.NextPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching next PR at URL %q: %w", prBody.NextPR, err)
 		}

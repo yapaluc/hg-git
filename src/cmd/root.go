@@ -23,6 +23,7 @@ func Execute() {
 		newEditCmd(),
 		newNextCmd(),
 		newPrevCmd(),
+		newPrgetCmd(),
 		newPrsyncCmd(),
 		newPullCmd(),
 		newRebaseCmd(),

@@ -56,12 +56,12 @@ func (g *GitHub) FetchPRForBranch(branchName string) (*PullRequest, error) {
 	return pr, nil
 }
 
-func (g *GitHub) FetchPRByURL(prURL string) (*PullRequest, error) {
+func (g *GitHub) FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
 	out, err := shell.Run(
 		shell.Opt{},
 		fmt.Sprintf(
 			"gh pr view %s --json url,state,title,baseRefName,body",
-			shellescape.Quote(prURL),
+			shellescape.Quote(prURLOrNum),
 		),
 	)
 	if err != nil {
