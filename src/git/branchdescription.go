@@ -32,7 +32,7 @@ func NewBranchDescription(firstLine string, remainingLines []string) *BranchDesc
 }
 
 func (b *BranchDescription) String() string {
-	desc := fmt.Sprintf("%s\n%s", b.Title, b.Body)
+	desc := fmt.Sprintf("%s\n\n%s", b.Title, b.Body)
 	if b.PrURL != "" {
 		desc += fmt.Sprintf("\n\nPR: %s\n\n", b.PrURL)
 	}
