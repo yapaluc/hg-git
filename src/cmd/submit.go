@@ -108,6 +108,7 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	sp.Prefix = prefix
 	sp.Suffix = color.YellowString(" processing")
 	sp.Start()
+	defer sp.Stop()
 
 	wasPushed, err := pushBranch(stackEntry.branchName, sp)
 	if err != nil {
@@ -137,7 +138,6 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 		color.New(color.Bold).Sprint(prLink),
 		finalStatus.String(),
 	)
-	sp.Stop()
 	return nil
 }
 
