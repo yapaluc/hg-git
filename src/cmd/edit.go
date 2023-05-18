@@ -28,18 +28,15 @@ func newEditCmd() *cobra.Command {
 }
 
 func runEdit(args []string) error {
-	if len(args) == 0 {
-		_, err := shell.Run(shell.Opt{StreamOutputToStdout: true}, "git branch --edit-description")
-		return err
-	}
-
-	branch, err := git.GetCurrentBranch()
+	currBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return err
 	}
-	rev := args[0]
-	if rev == "" {
-		rev = branch
+	var rev string
+	if len(args) == 0 {
+		rev = currBranch
+	} else {
+		rev = args[0]
 	}
 	branchNameResolution, err := git.ResolveBranchName(rev, nil)
 	if err != nil {
@@ -72,8 +69,17 @@ func editByBranchName(branchName string) error {
 		fmt.Sprintf("git config branch.%s.description", shellescape.Quote(branchName)),
 	)
 	if err != nil {
-		// git config exits with code 1 if there are no branch descriptions
-		currDesc = ""
+		// git config exits with code 1 if there are no branch descriptions.
+		// Fallback to pre-populating the description with the current commit message.
+		prettyFormat := "%s"
+		commitTitle, err := shell.Run(
+			shell.Opt{},
+			fmt.Sprintf("git log --format=%s -n 1 %s", prettyFormat, shellescape.Quote(branchName)),
+		)
+		if err != nil {
+			return fmt.Errorf("could not read commit title")
+		}
+		currDesc = commitTitle
 	}
 
 	commentChar, err := shell.Run(
