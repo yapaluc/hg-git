@@ -67,5 +67,13 @@ func runRevert(args []string, rev string) error {
 	if err != nil {
 		return fmt.Errorf("reverting files: %w", err)
 	}
+
+	// Handle special case of `revert .`, where we need to discard untracked files/directories.
+	if len(filepaths) == 1 && filepaths[0] == "." {
+		_, err := shell.Run(shell.Opt{StreamOutputToStdout: true}, "git clean -fd")
+		if err != nil {
+			return fmt.Errorf("discarding untracked files/directories: %w", err)
+		}
+	}
 	return nil
 }
