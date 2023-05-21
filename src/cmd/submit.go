@@ -104,9 +104,9 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 		100*time.Millisecond,
 		spinner.WithColor("reset"),
 	)
-	prefix := color.YellowString("%s: ", stackEntry.branchName)
+	prefix := color.GreenString("%s: ", stackEntry.branchName)
 	sp.Prefix = prefix
-	sp.Suffix = color.YellowString(" processing")
+	sp.Suffix = " processing"
 	sp.Start()
 	defer sp.Stop()
 
