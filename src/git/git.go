@@ -140,6 +140,7 @@ type commitMetadata struct {
 	body              string
 	BranchDescription *BranchDescription
 	IsMaster          bool
+	IsPartOfMaster    bool
 }
 
 func (cm *commitMetadata) CleanedBranchNames() []string {
@@ -152,6 +153,10 @@ func (cm *commitMetadata) CleanedBranchNames() []string {
 // This is only valid if this commit is part of the branch graph.
 func (cm *commitMetadata) IsEffectiveMaster() bool {
 	return cm.IsMaster || len(cm.CleanedBranchNames()) == 0
+}
+
+func (cm *commitMetadata) IsAncestorOfMaster() bool {
+	return cm.IsMaster || cm.IsPartOfMaster
 }
 
 func (cm *commitMetadata) PRURL() (string, string) {
@@ -336,6 +341,7 @@ func (rd *RepoData) buildBranchGraph() error {
 	shortCommitHashToInDeg := make(map[string]int)
 	allShortCommitHashes := make(map[string]struct{})
 	branchNameToPrevCommitHash := make(map[string]string)
+	shortCommitHashesInMaster := make(map[string]struct{})
 	r = regexp.MustCompile(`^(?P<markers>[\s*+-]*) \[(?P<shorthash>[a-z0-9]+)\] .*$`)
 	for _, line := range body {
 		match, err := util.RegexNamedMatches(r, line)
@@ -359,23 +365,29 @@ func (rd *RepoData) buildBranchGraph() error {
 				}
 			}
 			branchNameToPrevCommitHash[branchName] = shortCommitHash
+
+			if branchName == rd.MasterBranch {
+				shortCommitHashesInMaster[shortCommitHash] = struct{}{}
+			}
 		}
 	}
 
 	// Run a topological search to tighten it up to direct parent-child relationships.
 	q := list.New()
 	type qElem struct {
-		commitHash string
-		parentNode *TreeNode
-		root       bool
+		commitHash       string
+		parentBranchNode *TreeNode
+		parentNode       *TreeNode
+		root             bool
 	}
 	for commitHash := range allShortCommitHashes {
 		inDeg, ok := shortCommitHashToInDeg[commitHash]
 		if !ok || inDeg == 0 {
 			q.PushBack(qElem{
-				commitHash: commitHash,
-				parentNode: rd.BranchRootNode,
-				root:       true,
+				commitHash:       commitHash,
+				parentBranchNode: rd.BranchRootNode,
+				parentNode:       rd.BranchRootNode,
+				root:             true,
 			})
 		}
 	}
@@ -391,18 +403,34 @@ func (rd *RepoData) buildBranchGraph() error {
 			continue
 		}
 		visitedShortCommitHashes[commitHash] = struct{}{}
+
+		var parentBranchNodeToPropagate *TreeNode
 		if len(node.CommitMetadata.CleanedBranchNames()) > 0 || innerElem.root {
-			node.addBranchParent(innerElem.parentNode)
+			parent := innerElem.parentBranchNode
+			if innerElem.parentNode != innerElem.parentBranchNode {
+				_, parentNodeIsInMaster := shortCommitHashesInMaster[innerElem.parentNode.CommitMetadata.ShortCommitHash]
+				if parentNodeIsInMaster {
+					// Use parent node instead of parent branch node if it is part of master.
+					parent = innerElem.parentNode
+					// Register that node as part of the graph.
+					parent.addBranchParent(innerElem.parentBranchNode)
+					// Set the flag
+					parent.CommitMetadata.IsPartOfMaster = true
+				}
+			}
+			node.addBranchParent(parent)
+			parentBranchNodeToPropagate = node
 		} else {
-			// If this node doesn't represent a branch, propagate its parent node as the parent node.
-			node = innerElem.parentNode
+			// If this node doesn't represent a branch, propagate its parent node as the parent branch node.
+			parentBranchNodeToPropagate = innerElem.parentBranchNode
 		}
 		for child := range shortCommitHashToChildren[commitHash] {
 			shortCommitHashToInDeg[child]--
 			if shortCommitHashToInDeg[child] == 0 {
 				q.PushBack(qElem{
-					commitHash: child,
-					parentNode: node,
+					commitHash:       child,
+					parentBranchNode: parentBranchNodeToPropagate,
+					parentNode:       node,
 				})
 			}
 		}
