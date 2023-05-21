@@ -73,6 +73,9 @@ func RunAndCollectLines(opt Opt, cmdStr string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if out == "" {
+		return nil, nil
+	}
 	lines := strings.Split(out, "\n")
 	return lines, nil
 }
