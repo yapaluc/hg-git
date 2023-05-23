@@ -24,8 +24,7 @@ func runPrsync(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
 
-	gh := github.New()
-	prData, err := gh.FetchPRForBranch(currBranch)
+	prData, err := github.FetchPRForBranch(currBranch)
 	if err != nil {
 		return fmt.Errorf("getting PR data for branch %q: %w", currBranch, err)
 	}

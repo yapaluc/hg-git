@@ -24,7 +24,6 @@ func newSubmitCmd() *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSubmit(submitCfg{
 				draft: draft,
-				gh:    github.New(),
 			})
 		},
 	}
@@ -34,7 +33,6 @@ func newSubmitCmd() *cobra.Command {
 
 type submitCfg struct {
 	draft           bool
-	gh              *github.GitHub
 	gitMasterBranch string
 }
 
@@ -185,7 +183,7 @@ func createOrUpdatePR(
 	if !parent.CommitMetadata.IsEffectiveMaster() {
 		sp.Suffix = " fetching parent PR"
 		parentBranch := parent.CommitMetadata.CleanedBranchNames()[0]
-		parentPRDataLocal, err := cfg.gh.FetchPRForBranch(parentBranch)
+		parentPRDataLocal, err := github.FetchPRForBranch(parentBranch)
 		parentPRData = parentPRDataLocal
 		if err != nil {
 			return "", statusUnknown, fmt.Errorf(
@@ -206,7 +204,7 @@ func createOrUpdatePR(
 	}
 
 	sp.Suffix = " fetching current PR"
-	prData, err := cfg.gh.FetchPRForBranch(stackEntry.branchName)
+	prData, err := github.FetchPRForBranch(stackEntry.branchName)
 	if err != nil {
 		return "", statusUnknown, fmt.Errorf(
 			"fetching PR data for branch %q: %w",
@@ -394,7 +392,7 @@ func getUpdatedPRBody(
 		newPreviousPR = parentPRData.URL
 	}
 	if prBody.PreviousPR != "" {
-		previousPRData, err := cfg.gh.FetchPRByURLOrNum(prBody.PreviousPR)
+		previousPRData, err := github.FetchPRByURLOrNum(prBody.PreviousPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching previous PR at URL %q: %w", prBody.PreviousPR, err)
 		}
@@ -406,7 +404,7 @@ func getUpdatedPRBody(
 
 	// Remove the "Next" annotation if its base branch is not pointing to this branch.
 	if prBody.NextPR != "" {
-		nextPRData, err := cfg.gh.FetchPRByURLOrNum(prBody.NextPR)
+		nextPRData, err := github.FetchPRByURLOrNum(prBody.NextPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching next PR at URL %q: %w", prBody.NextPR, err)
 		}

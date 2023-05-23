@@ -19,17 +19,7 @@ type PullRequest struct {
 	Body        string
 }
 
-type GitHub struct {
-	branchToPullRequest map[string]*PullRequest
-}
-
-func New() *GitHub {
-	return &GitHub{
-		branchToPullRequest: make(map[string]*PullRequest),
-	}
-}
-
-func (g *GitHub) FetchPRForBranch(branchName string) (*PullRequest, error) {
+func FetchPRForBranch(branchName string) (*PullRequest, error) {
 	out, err := shell.Run(
 		shell.Opt{},
 		fmt.Sprintf(
@@ -52,11 +42,10 @@ func (g *GitHub) FetchPRForBranch(branchName string) (*PullRequest, error) {
 	}
 	pr := &resp[0]
 	pr.Body = strings.ReplaceAll(pr.Body, "\r\n", "\n")
-	g.branchToPullRequest[branchName] = pr
 	return pr, nil
 }
 
-func (g *GitHub) FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
+func FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
 	out, err := shell.Run(
 		shell.Opt{},
 		fmt.Sprintf(
