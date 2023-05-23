@@ -31,12 +31,14 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("getting repo data: %w", err)
 	}
 
+	masterNode := repoData.BranchNameToNode[repoData.MasterBranch]
 	branchToMergeArgs := make(map[string][]mergeArg)
 	for _, prunedBranch := range prunedBranches {
-		branchToMergeArgs[prunedBranch], err = getMergeArgsForCleanup(
-			repoData.BranchNameToNode[prunedBranch],
-			repoData.BranchNameToNode[repoData.MasterBranch],
-		)
+		prunedNode, ok := repoData.BranchNameToNode[prunedBranch]
+		if !ok {
+			continue
+		}
+		branchToMergeArgs[prunedBranch], err = getMergeArgsForCleanup(prunedNode, masterNode)
 		if err != nil {
 			return fmt.Errorf(
 				"getting merge args for cleanup of pruned branch %q: %w",
@@ -51,7 +53,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("pulling latest changes: %w", err)
 	}
 
-	for _, prunedBranch := range prunedBranches {
+	for prunedBranch, mergeArgs := range branchToMergeArgs {
 		color.Green("Pruning branch: %s", prunedBranch)
 
 		// Delete the local branch.
@@ -61,7 +63,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 
 		// Restack.
-		err = executeRestack(branchToMergeArgs[prunedBranch])
+		err = executeRestack(mergeArgs)
 		if err != nil {
 			return fmt.Errorf("executing restack of pruned branch %q: %w", prunedBranch, err)
 		}
