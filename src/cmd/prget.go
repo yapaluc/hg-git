@@ -18,6 +18,7 @@ func newPrgetCmd() *cobra.Command {
 }
 
 func runPrget(_ *cobra.Command, args []string) error {
+	// TODO - restack after running this
 	prURLOrNum := args[0]
 	_, err := shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
