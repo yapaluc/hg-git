@@ -155,32 +155,40 @@ func executeRestack(mergeArgs []mergeArg) error {
 		if err == nil {
 			continue
 		}
-		for {
-			lines, err := shell.RunAndCollectLines(
-				shell.Opt{},
-				"git diff --name-only --diff-filter=U",
-			)
-			if err != nil {
-				return fmt.Errorf("checking for merge conflicts: %w", err)
-			}
-			if len(lines) == 0 {
-				break
-			}
-			color.Red("Merge conflicts hit:")
-			for _, line := range lines {
-				color.Red("  " + line)
-			}
-			color.Red("Resolve the merge conflicts and press enter to continue.")
-			color.Red("You don't need to add files or continue the merge.")
-			waitForUserInput()
-			color.Green("Continuing")
-			_, err = shell.Run(
-				shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
-				"git add --all && git commit --no-edit",
-			)
-			if err != nil {
-				return fmt.Errorf("continuing merge: %w", err)
-			}
+		err = maybePromptForMergeConflictResolution("git commit --no-edit")
+		if err != nil {
+			return fmt.Errorf("waiting for merge conflict resolution: %w", err)
+		}
+	}
+	return nil
+}
+
+func maybePromptForMergeConflictResolution(resolutionCommand string) error {
+	for {
+		lines, err := shell.RunAndCollectLines(
+			shell.Opt{},
+			"git diff --name-only --diff-filter=U",
+		)
+		if err != nil {
+			return fmt.Errorf("checking for merge conflicts: %w", err)
+		}
+		if len(lines) == 0 {
+			break
+		}
+		color.Red("Merge conflicts hit:")
+		for _, line := range lines {
+			color.Red("  " + line)
+		}
+		color.Red("Resolve the merge conflicts and press enter to continue.")
+		color.Red("You don't need to add files or continue the merge/rebase.")
+		waitForUserInput()
+		color.Green("Continuing")
+		_, err = shell.Run(
+			shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
+			"git add --all && "+resolutionCommand,
+		)
+		if err != nil {
+			return fmt.Errorf("continuing merge/rebase: %w", err)
 		}
 	}
 	return nil
