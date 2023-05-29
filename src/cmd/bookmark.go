@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/shell"
 
 	"github.com/alessio/shellescape"
@@ -42,9 +43,15 @@ func runBookmark(args []string, delete bool) error {
 }
 
 func deleteBranch(branchName string) error {
-	err := updateRev(branchName, &branchName)
+	currBranch, err := git.GetCurrentBranch()
 	if err != nil {
-		return fmt.Errorf("switching before deleting branch %q: %w", branchName, err)
+		return fmt.Errorf("getting current branch: %w", err)
+	}
+	if branchName == currBranch {
+		err := updateRev(branchName, &branchName)
+		if err != nil {
+			return fmt.Errorf("switching before deleting branch %q: %w", branchName, err)
+		}
 	}
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
