@@ -13,6 +13,7 @@ func newPullCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "pull",
 		Short: "Pull master from remote.",
+		Args:  cobra.NoArgs,
 		RunE:  runPull,
 	}
 }

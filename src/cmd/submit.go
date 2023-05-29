@@ -21,6 +21,7 @@ func newSubmitCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "submit [-n draft]",
 		Short: "Submits GitHub Pull Requests for the current stack (current branch and its ancestors).",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSubmit(submitCfg{
 				draft: draft,

@@ -14,6 +14,7 @@ func newPrsyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "prsync",
 		Short: "Syncs the local title and description to match the PR title and PR description.",
+		Args:  cobra.NoArgs,
 		RunE:  runPrsync,
 	}
 }

@@ -12,6 +12,7 @@ func newNextCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "next",
 		Short: "Checks out the child branch.",
+		Args:  cobra.NoArgs,
 		RunE:  runNext,
 	}
 }

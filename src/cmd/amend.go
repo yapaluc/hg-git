@@ -19,6 +19,7 @@ func newAmendCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "amend [-m message | -f force]",
 		Short: "Commits changes as a new commit on the current branch and restacks descendant branches via merges (not rebases).",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _args []string) error {
 			return runAmend(message, force)
 		},

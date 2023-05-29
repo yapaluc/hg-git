@@ -12,6 +12,7 @@ func newPrevCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "prev",
 		Short: "Checks out the parent branch.",
+		Args:  cobra.NoArgs,
 		RunE:  runPrev,
 	}
 }

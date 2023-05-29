@@ -14,6 +14,7 @@ func newCommitCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "commit [-m message]",
 		Short: "Stage all files and commit.",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runCommit(args, msg)
 		},

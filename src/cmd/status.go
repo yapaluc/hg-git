@@ -16,6 +16,7 @@ func newStatusCmd() *cobra.Command {
 		Use:     "status [--change]",
 		Short:   "Alias of git status.",
 		Aliases: []string{"st"},
+		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runStatus(args, change)
 		},

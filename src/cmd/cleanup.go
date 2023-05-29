@@ -16,6 +16,7 @@ func newCleanupCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "cleanup",
 		Short: "Cleanup merged branches and rebase their descendants on master.",
+		Args:  cobra.NoArgs,
 		RunE:  runCleanup,
 	}
 }
@@ -57,7 +58,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		color.Green("Pruning branch: %s", prunedBranch)
 
 		// Delete the local branch.
-		err := deleteBranch(prunedBranch)
+		err := deleteBranches([]string{prunedBranch})
 		if err != nil {
 			return fmt.Errorf("deleting local pruned branch %q: %w", prunedBranch, err)
 		}

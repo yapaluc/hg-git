@@ -16,6 +16,7 @@ func newRebaseCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "rebase -s source -d dest",
 		Short: "Rebases the given branch and its descendants onto the given branch. If possible, rebase is done with a merge instead of an actual rebase. For example, when rebasing the root of a stack, a merge is used. When rebasing the middle of a stack, a rebase is used.",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runRebase(args, source, dest)
 		},

@@ -79,6 +79,9 @@ type branchNameResolution struct {
 }
 
 func ResolveBranchName(rev string, excludeBranch *string) (*branchNameResolution, error) {
+	if rev == "." {
+		rev = "HEAD"
+	}
 	branches, err := shell.RunAndCollectLines(
 		shell.Opt{},
 		fmt.Sprintf(

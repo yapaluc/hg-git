@@ -20,6 +20,7 @@ func newSmartlogCmd() *cobra.Command {
 		Short:   "Displays a smartlog: a sparse graph of commits relevant to you.",
 		Long:    "Displays a smartlog of branches: a sparse graph of commits relevant to you. Branches are collapsed into single entries in the graph. Similar to `git log '--branches=*' --graph --decorate --oneline --simplify-by-decoration`.",
 		Aliases: []string{"sl"},
+		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSmartlog(args, showTime)
 		},
