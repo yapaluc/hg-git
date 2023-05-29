@@ -59,7 +59,7 @@ func Run(opt Opt, cmdStr string) (string, error) {
 		err = cmdErr
 	}
 	if err != nil {
-		return "", fmt.Errorf("running command: %q: %w", cmdStr, err)
+		return out, fmt.Errorf("running command: %q: %w", cmdStr, err)
 	}
 	if opt.StripTrailingNewline {
 		out = strings.TrimRight(out, "\n")

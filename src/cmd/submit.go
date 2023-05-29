@@ -18,6 +18,7 @@ import (
 
 func newSubmitCmd() *cobra.Command {
 	var draft bool
+	var force bool
 	var cmd = &cobra.Command{
 		Use:   "submit [-n draft]",
 		Short: "Submits GitHub Pull Requests for the current stack (current branch and its ancestors).",
@@ -25,15 +26,18 @@ func newSubmitCmd() *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSubmit(submitCfg{
 				draft: draft,
+				force: force,
 			})
 		},
 	}
 	cmd.Flags().BoolVarP(&draft, "draft", "n", false, "Create Pull Request as a draft")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force push")
 	return cmd
 }
 
 type submitCfg struct {
 	draft           bool
+	force           bool
 	gitMasterBranch string
 }
 
@@ -109,7 +113,7 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	sp.Start()
 	defer sp.Stop()
 
-	wasPushed, err := pushBranch(stackEntry.branchName, sp)
+	wasPushed, err := pushBranch(stackEntry.branchName, cfg.force, sp)
 	if err != nil {
 		return fmt.Errorf("pushing branch %q: %w", stackEntry.branchName, err)
 	}
@@ -140,13 +144,23 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	return nil
 }
 
-func pushBranch(branchName string, sp *spinner.Spinner) (bool, error) {
+func pushBranch(branchName string, force bool, sp *spinner.Spinner) (bool, error) {
 	sp.Suffix = " pushing to remote"
+	var forceFlag string
+	if force {
+		forceFlag = " -f"
+	}
 	out, err := shell.Run(
 		shell.Opt{CombinedStdoutStderrOutput: true},
-		fmt.Sprintf("git push origin %s", shellescape.Quote(branchName)),
+		fmt.Sprintf("git push origin %s%s", shellescape.Quote(branchName), forceFlag),
 	)
 	if err != nil {
+		if strings.Contains(out, "(non-fast-forward)") {
+			return false, fmt.Errorf(
+				"running git push. you may want to pull the latest changes or rerun this command with -f/--force if you want to force push: %w",
+				err,
+			)
+		}
 		return false, fmt.Errorf("running git push: %w", err)
 	}
 
