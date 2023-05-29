@@ -35,7 +35,7 @@ func runBookmark(args []string, delete bool) error {
 	branchName := args[0]
 	_, err := shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git switch -c %s", shellescape.Quote(branchName)),
+		fmt.Sprintf("git switch -C %s", shellescape.Quote(branchName)),
 	)
 	if err != nil {
 		return fmt.Errorf("switching to branch %q: %w", branchName, err)
