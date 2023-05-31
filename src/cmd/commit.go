@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/shell"
 
 	"github.com/alessio/shellescape"
@@ -27,7 +28,35 @@ func newCommitCmd() *cobra.Command {
 }
 
 func runCommit(args []string, msg string) error {
+	branch, err := git.GetCurrentBranch()
+	if err != nil {
+		return fmt.Errorf("getting current branch: %w", err)
+	}
+
+	masterBranch, err := git.GetMasterBranch()
+	if err != nil {
+		return fmt.Errorf("getting master branch: %w", err)
+	}
+
 	cmdStr := fmt.Sprintf("git add --all && git commit -m %s", shellescape.Quote(msg))
-	_, err := shell.Run(shell.Opt{StreamOutputToStdout: true}, cmdStr)
-	return err
+	_, err = shell.Run(shell.Opt{StreamOutputToStdout: true}, cmdStr)
+	if err != nil {
+		return fmt.Errorf("running commit: %w", err)
+	}
+
+	if branch == masterBranch {
+		return nil
+	}
+
+	// Populate branch description if this is a new branch
+	currDesc, err := getBranchDescriptionWithFallback(branch)
+	if err != nil {
+		return fmt.Errorf("could not get current branch description: %w", err)
+	}
+
+	err = writeBranchDescription(branch, currDesc)
+	if err != nil {
+		return fmt.Errorf("writing branch description: %w", err)
+	}
+	return nil
 }

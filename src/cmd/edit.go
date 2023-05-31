@@ -64,22 +64,9 @@ const template = `%s
 const filePrefix = "EDIT_BRANCH_DESC_"
 
 func editByBranchName(branchName string) error {
-	currDesc, err := shell.Run(
-		shell.Opt{},
-		fmt.Sprintf("git config branch.%s.description", shellescape.Quote(branchName)),
-	)
+	currDesc, err := getBranchDescriptionWithFallback(branchName)
 	if err != nil {
-		// git config exits with code 1 if there are no branch descriptions.
-		// Fallback to pre-populating the description with the current commit message.
-		prettyFormat := "%s"
-		commitTitle, err := shell.Run(
-			shell.Opt{},
-			fmt.Sprintf("git log --format=%s -n 1 %s", prettyFormat, shellescape.Quote(branchName)),
-		)
-		if err != nil {
-			return fmt.Errorf("could not read commit title")
-		}
-		currDesc = commitTitle
+		return fmt.Errorf("could not get current branch description: %w", err)
 	}
 
 	commentChar, err := shell.Run(
@@ -111,11 +98,12 @@ func editByBranchName(branchName string) error {
 	if newDesc == "" {
 		return fmt.Errorf("user did not edit description")
 	}
-	_, err = shell.Run(
-		shell.Opt{},
-		fmt.Sprintf("git config branch.%s.description %s", branchName, shellescape.Quote(newDesc)),
-	)
-	return err
+
+	err = writeBranchDescription(branchName, newDesc)
+	if err != nil {
+		return fmt.Errorf("writing branch description: %w", err)
+	}
+	return nil
 }
 
 func writeBranchDescription(branchName string, branchDesc string) error {
@@ -128,4 +116,25 @@ func writeBranchDescription(branchName string, branchDesc string) error {
 		),
 	)
 	return err
+}
+
+func getBranchDescriptionWithFallback(branchName string) (string, error) {
+	currDesc, err := shell.Run(
+		shell.Opt{},
+		fmt.Sprintf("git config branch.%s.description", shellescape.Quote(branchName)),
+	)
+	if err == nil {
+		return currDesc, nil
+	}
+	// git config exits with code 1 if there are no branch descriptions.
+	// Fallback to pre-populating the description with the current commit message.
+	prettyFormat := "%s"
+	commitTitle, err := shell.Run(
+		shell.Opt{},
+		fmt.Sprintf("git log --format=%s -n 1 %s", prettyFormat, shellescape.Quote(branchName)),
+	)
+	if err != nil {
+		return "", fmt.Errorf("could not read commit title")
+	}
+	return commitTitle, nil
 }
