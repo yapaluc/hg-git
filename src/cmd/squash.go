@@ -42,7 +42,7 @@ func runSquash(args []string) error {
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf(
-			`GIT_EDITOR='f() { if [ "$(basename $1)" = "git-rebase-todo" ]; then sed -i "" "2,\$s/pick/squash/" $1; else true; fi }; f' git rebase -i %s %s`,
+			`GIT_EDITOR='f() { if [ "$(basename $1)" = "git-rebase-todo" ]; then sed -i="" "2,\$s/pick/squash/" $1; else true; fi }; f' git rebase -i %s %s`,
 			shellescape.Quote(node.BranchParent.CommitMetadata.CleanedBranchNames()[0]),
 			shellescape.Quote(node.CommitMetadata.CleanedBranchNames()[0]),
 		),
