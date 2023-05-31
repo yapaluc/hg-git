@@ -84,7 +84,7 @@ func printNodeChildren(currBranch string, node *git.TreeNode, prefix string) err
 		} else {
 			graph = mainGraphConnector + " " + bullet
 		}
-		fmt.Println(prefix + graph + "  " + summary[0])
+		fmt.Println(prefix + graph + " " + summary)
 
 		// Update the connector character. Use ":" if parent is the root node.
 		graphConnector := "|"
@@ -95,24 +95,16 @@ func printNodeChildren(currBranch string, node *git.TreeNode, prefix string) err
 			mainGraphConnector = graphConnector
 		}
 
-		// Second line
-		if i == 0 {
-			graph = mainGraphConnector
-		} else {
-			graph = mainGraphConnector + "/ "
-		}
-		fmt.Println(prefix + graph + "  " + summary[1])
-
 		// Update the connector character.
 		if i > 0 {
 			mainGraphConnector = graphConnector
 		}
 
 		// Spacing to parent node
-		if i < len(children)-1 {
+		if i == 0 {
 			graph = mainGraphConnector
 		} else {
-			graph = graphConnector
+			graph = mainGraphConnector + "/ "
 		}
 		fmt.Println(prefix + graph)
 	}
@@ -138,52 +130,50 @@ func sortedChildren(node *git.TreeNode) []*git.TreeNode {
 	return children
 }
 
-func getNodeSummary(node *git.TreeNode, currBranch string) ([]string, error) {
+func getNodeSummary(node *git.TreeNode, currBranch string) (string, error) {
 	commitMetadata := node.CommitMetadata
 	if commitMetadata == nil {
-		return nil, fmt.Errorf("missing CommitMetadata")
+		return "", fmt.Errorf("missing CommitMetadata")
 	}
 
-	// First line
-	var firstLine string
+	var line string
 	var sha string
 	if commitMetadata.IsHead {
 		sha = color.MagentaString(commitMetadata.ShortCommitHash)
 	} else {
 		sha = color.YellowString(commitMetadata.ShortCommitHash)
 	}
-	firstLine += sha + "  "
-	firstLine += commitMetadata.Author + "  "
+	line += sha + " "
+	line += commitMetadata.Author + " "
 	branchNames := commitMetadata.CleanedBranchNames()
 	if len(branchNames) > 0 {
-		firstLine += color.GreenString("(")
+		line += color.GreenString("(")
 		for i, name := range branchNames {
 			var comma string
 			if i != len(branchNames)-1 {
 				comma = ", "
 			}
 			if name == currBranch {
-				firstLine += color.New(color.FgGreen, color.Bold).Sprintf("%s%s", name, comma)
+				line += color.New(color.FgGreen, color.Bold).Sprintf("%s%s", name, comma)
 			} else {
-				firstLine += color.GreenString("%s%s", name, comma)
+				line += color.GreenString("%s%s", name, comma)
 			}
 		}
-		firstLine += color.GreenString(")  ")
+		line += color.GreenString(") ")
 	}
 	prURL, prURLText := commitMetadata.PRURL()
 	if prURL != "" && prURLText != "" {
-		firstLine += color.New(color.Bold).Sprintf("%s  ", util.Linkify(prURLText, prURL))
+		line += color.New(color.Bold).Sprintf("%s ", util.Linkify(prURLText, prURL))
 	}
-	firstLine += commitMetadata.TimestampRelative
+	line += fmt.Sprintf("[%s]", commitMetadata.TimestampRelative)
 
-	// Second line
 	var title string
 	if commitMetadata.BranchDescription != nil {
 		title = commitMetadata.BranchDescription.Title
 	} else {
 		title = commitMetadata.Title
 	}
-	secondLine := title
+	line += " " + title
 
-	return []string{firstLine, secondLine}, nil
+	return line, nil
 }
