@@ -16,24 +16,29 @@ import (
 func newAmendCmd() *cobra.Command {
 	var message string
 	var force bool
+	var empty bool
 	var cmd = &cobra.Command{
-		Use:   "amend [-m message | -f force]",
+		Use:   "amend [-m message | -f force] [-e empty]",
 		Short: "Commits changes as a new commit on the current branch and restacks descendant branches via merges (not rebases).",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _args []string) error {
-			return runAmend(message, force)
+			return runAmend(message, force, empty)
 		},
 	}
 	cmd.Flags().StringVarP(&message, "message", "m", "", "Message to commit with")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Use a default message")
+	cmd.Flags().
+		BoolVarP(&empty, "empty", "e", false, "Create an empty commit. The use case is to force a push to remote to trigger a build.")
 	cmd.MarkFlagsMutuallyExclusive("message", "force")
 	return cmd
 }
 
-func runAmend(message string, force bool) error {
+func runAmend(message string, force bool, empty bool) error {
 	msg := message
 	if msg == "" && force {
 		msg = "update"
+	} else if empty {
+		msg = "empty commit"
 	}
 	if msg == "" {
 		return fmt.Errorf("-m is required or specify -f to use a default")
@@ -57,9 +62,13 @@ func runAmend(message string, force bool) error {
 	}
 
 	// Commit.
+	var allowEmptyFlag string
+	if empty {
+		allowEmptyFlag = " --allow-empty"
+	}
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
-		fmt.Sprintf("git add --all && git commit -m %s", shellescape.Quote(msg)),
+		fmt.Sprintf("git add --all && git commit -m %s%s", shellescape.Quote(msg), allowEmptyFlag),
 	)
 	if err != nil {
 		return fmt.Errorf("committing: %w", err)
