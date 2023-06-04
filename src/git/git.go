@@ -136,7 +136,7 @@ type commitMetadata struct {
 	childrenHashes    []string
 	Author            string
 	TimestampRelative string
-	Timestamp         int
+	Timestamp         int64
 	BranchNames       []string
 	IsHead            bool
 	Title             string
@@ -484,7 +484,7 @@ func newCommitMetadata(
 	masterBranch string,
 ) (*commitMetadata, error) {
 	firstLineHashes := strings.Split(lines[start], " ")
-	timestamp, err := strconv.Atoi(lines[start+4])
+	timestamp, err := strconv.ParseInt(lines[start+4], 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("converting timestamp to int: %w", err)
 	}

@@ -165,7 +165,7 @@ func getNodeSummary(node *git.TreeNode, currBranch string) (string, error) {
 	if prURL != "" && prURLText != "" {
 		line += color.New(color.Bold).Sprintf("%s ", util.Linkify(prURLText, prURL))
 	}
-	line += fmt.Sprintf("[%s]", commitMetadata.TimestampRelative)
+	line += fmt.Sprintf("[%s]", renderRelativeTime(commitMetadata.Timestamp))
 
 	var title string
 	if commitMetadata.BranchDescription != nil {
@@ -176,4 +176,25 @@ func getNodeSummary(node *git.TreeNode, currBranch string) (string, error) {
 	line += " " + title
 
 	return line, nil
+}
+
+func renderRelativeTime(timestamp int64) string {
+	duration := int64(time.Since(time.Unix(timestamp, 0)).Seconds())
+	if duration < 60 {
+		return fmt.Sprintf("%ds", duration)
+	}
+	duration /= 60
+	if duration < 60 {
+		return fmt.Sprintf("%dm", duration)
+	}
+	duration /= 60
+	if duration < 24 {
+		return fmt.Sprintf("%dh", duration)
+	}
+	duration /= 24
+	if duration < 365 {
+		return fmt.Sprintf("%dd", duration)
+	}
+	duration /= 365
+	return fmt.Sprintf("%dy", duration)
 }
