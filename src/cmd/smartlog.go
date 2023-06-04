@@ -165,7 +165,7 @@ func getNodeSummary(node *git.TreeNode, currBranch string) (string, error) {
 	if prURL != "" && prURLText != "" {
 		line += color.New(color.Bold).Sprintf("%s ", util.Linkify(prURLText, prURL))
 	}
-	line += fmt.Sprintf("[%s]", renderRelativeTime(commitMetadata.Timestamp))
+	line += color.BlueString(renderRelativeTime(commitMetadata.Timestamp))
 
 	var title string
 	if commitMetadata.BranchDescription != nil {
