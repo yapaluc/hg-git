@@ -85,8 +85,9 @@ func rebaseMiddleOfStack(sourceNode *git.TreeNode, destNode *git.TreeNode) error
 	for _, rebaseArg := range rebaseArgs {
 		_, err = shell.Run(
 			shell.Opt{StreamOutputToStdout: true},
+			// -X theirs is for preferring current branch changes during conflicts
 			fmt.Sprintf(
-				"git checkout %s && git rebase --onto %s %s %s --update-refs --no-edit",
+				"git checkout %s && git rebase --onto %s %s %s --update-refs --no-edit -X theirs",
 				shellescape.Quote(rebaseArg.branchToRebase),
 				shellescape.Quote(rebaseArg.targetLocationBranch),
 				shellescape.Quote(rebaseArg.oldParentCommitHash),
