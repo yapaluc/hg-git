@@ -41,6 +41,8 @@ func NewPrBody(rawPrBody string) (*PrBody, error) {
 }
 
 func (p *PrBody) String() string {
+	// TODO: format these better, e.g., in a table?
+	// TODO: support multiple "next"s
 	var previousAnnotation string
 	if p.PreviousPR != "" {
 		previousAnnotation = fmt.Sprintf("* **Previous:** %s", p.PreviousPR)

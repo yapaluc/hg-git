@@ -53,6 +53,7 @@ func runSmartlog(args []string, showTime bool) error {
 }
 
 // Adapted from https://github.com/reydanro/git-smartlog
+// TODO: reverse the smartlog
 func printNodeChildren(currBranch string, node *git.TreeNode, prefix string) error {
 	mainGraphConnector := ""
 	children := sortedChildren(node)
