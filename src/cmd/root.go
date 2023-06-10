@@ -28,6 +28,7 @@ func Execute() {
 		newPullCmd(),
 		newRebaseCmd(),
 		newRevertCmd(),
+		newTopCmd(),
 		newSmartlogCmd(),
 		newSquashCmd(),
 		newStatusCmd(),
