@@ -86,7 +86,7 @@ func rebaseMiddleOfStack(sourceNode *git.TreeNode, destNode *git.TreeNode) error
 		_, err = shell.Run(
 			shell.Opt{StreamOutputToStdout: true},
 			fmt.Sprintf(
-				"git checkout %s && git rebase --onto %s %s %s --update-refs",
+				"git checkout %s && git rebase --onto %s %s %s --update-refs --no-edit",
 				shellescape.Quote(rebaseArg.branchToRebase),
 				shellescape.Quote(rebaseArg.targetLocationBranch),
 				shellescape.Quote(rebaseArg.oldParentCommitHash),
@@ -96,7 +96,7 @@ func rebaseMiddleOfStack(sourceNode *git.TreeNode, destNode *git.TreeNode) error
 		if err == nil {
 			continue
 		}
-		err = maybePromptForMergeConflictResolution("git rebase --continue --no-edit")
+		err = maybePromptForMergeConflictResolution("git rebase --continue")
 		if err != nil {
 			return fmt.Errorf("waiting for merge conflict resolution: %w", err)
 		}
