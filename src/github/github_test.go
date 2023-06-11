@@ -9,7 +9,16 @@ import (
 )
 
 const rawPrBodyWithPrevAndNextPR = `
-| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL1 | Current | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL2 |
+| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL1 | Current<br> | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL2 |
+| ------------- | ------------- | ------------- |
+<!-- end preamble -->
+
+content line 1
+content line 2
+`
+
+const rawPrBodyWithMultipleNextPRs = `
+| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL1<br>&nbsp; | Current<br><br> | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL2<br>PR_URL3 |
 | ------------- | ------------- | ------------- |
 <!-- end preamble -->
 
@@ -18,7 +27,7 @@ content line 2
 `
 
 const rawPrBodyWithPrevPR = `
-| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL1 | Current | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp; |
+| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL1 | Current<br> | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp; |
 | ------------- | ------------- | ------------- |
 <!-- end preamble -->
 
@@ -27,7 +36,7 @@ content line 2
 `
 
 const rawPrBodyWithNextPR = `
-| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp; | Current | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL2 |
+| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp; | Current<br> | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>PR_URL2 |
 | ------------- | ------------- | ------------- |
 <!-- end preamble -->
 
@@ -47,31 +56,37 @@ func TestNewPrBody(t *testing.T) {
 		rawPrBody   string
 		description string
 		previousPR  string
-		nextPR      string
+		nextPRs     []string
 	}{
 		"PR body with prev and next PR": {
 			rawPrBody:   rawPrBodyWithPrevAndNextPR,
 			description: "content line 1\ncontent line 2",
 			previousPR:  "PR_URL1",
-			nextPR:      "PR_URL2",
+			nextPRs:     []string{"PR_URL2"},
+		},
+		"PR body with multiple next PRs": {
+			rawPrBody:   rawPrBodyWithMultipleNextPRs,
+			description: "content line 1\ncontent line 2",
+			previousPR:  "PR_URL1",
+			nextPRs:     []string{"PR_URL2", "PR_URL3"},
 		},
 		"PR body with prev PR": {
 			rawPrBody:   rawPrBodyWithPrevPR,
 			description: "content line 1\ncontent line 2",
 			previousPR:  "PR_URL1",
-			nextPR:      "",
+			nextPRs:     nil,
 		},
 		"PR body with next PR": {
 			rawPrBody:   rawPrBodyWithNextPR,
 			description: "content line 1\ncontent line 2",
 			previousPR:  "",
-			nextPR:      "PR_URL2",
+			nextPRs:     []string{"PR_URL2"},
 		},
 		"PR body with no PRs": {
 			rawPrBody:   rawPrBodyWithNoPRs,
 			description: "content line 1\ncontent line 2",
 			previousPR:  "",
-			nextPR:      "",
+			nextPRs:     nil,
 		},
 	}
 	for name, tc := range testCases {
@@ -81,7 +96,7 @@ func TestNewPrBody(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(prBody.Description).To(Equal(tc.description))
 			g.Expect(prBody.PreviousPR).To(Equal(tc.previousPR))
-			g.Expect(prBody.NextPR).To(Equal(tc.nextPR))
+			g.Expect(prBody.NextPRs).To(ConsistOf(tc.nextPRs))
 		})
 	}
 }
@@ -91,22 +106,27 @@ func TestPrBodyRoundtrip(t *testing.T) {
 		"PR body with prev and next PR": {
 			Description: "content line 1\ncontent line 2",
 			PreviousPR:  "PR_URL1",
-			NextPR:      "PR_URL2",
+			NextPRs:     []string{"PR_URL2"},
+		},
+		"PR body with multiple next PRs": {
+			Description: "content line 1\ncontent line 2",
+			PreviousPR:  "PR_URL1",
+			NextPRs:     []string{"PR_URL3", "PR_URL2"},
 		},
 		"PR body with prev PR": {
 			Description: "content line 1\ncontent line 2",
 			PreviousPR:  "PR_URL1",
-			NextPR:      "",
+			NextPRs:     nil,
 		},
 		"PR body with next PR": {
 			Description: "content line 1\ncontent line 2",
 			PreviousPR:  "",
-			NextPR:      "PR_URL2",
+			NextPRs:     []string{"PR_URL2"},
 		},
 		"PR body with no PRs": {
 			Description: "content line 1\ncontent line 2",
 			PreviousPR:  "",
-			NextPR:      "",
+			NextPRs:     nil,
 		},
 	}
 	for name, tc := range testCases {
@@ -117,7 +137,7 @@ func TestPrBodyRoundtrip(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(prBody.Description).To(Equal(tc.Description))
 			g.Expect(prBody.PreviousPR).To(Equal(tc.PreviousPR))
-			g.Expect(prBody.NextPR).To(Equal(tc.NextPR))
+			g.Expect(prBody.NextPRs).To(ConsistOf(tc.NextPRs))
 		})
 	}
 }

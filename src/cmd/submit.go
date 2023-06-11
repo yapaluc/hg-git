@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/github"
 	"github.com/yapaluc/hg-git/src/shell"
@@ -417,16 +418,18 @@ func getUpdatedPRBody(
 	}
 	prBody.PreviousPR = newPreviousPR
 
-	// Remove the "Next" annotation if its base branch is not pointing to this branch.
-	if prBody.NextPR != "" {
-		nextPRData, err := github.FetchPRByURLOrNum(prBody.NextPR)
+	// Remove "Next" PRs with a base branch not pointing to this branch.
+	var newNextPRs []string
+	for _, nextPR := range prBody.NextPRs {
+		nextPRData, err := github.FetchPRByURLOrNum(nextPR)
 		if err != nil {
-			return "", fmt.Errorf("fetching next PR at URL %q: %w", prBody.NextPR, err)
+			return "", fmt.Errorf("fetching next PR at URL %q: %w", nextPR, err)
 		}
-		if nextPRData.BaseRefName != stackEntry.branchName {
-			prBody.NextPR = ""
+		if nextPRData.BaseRefName == stackEntry.branchName {
+			newNextPRs = append(newNextPRs, nextPR)
 		}
 	}
+	prBody.NextPRs = newNextPRs
 
 	return prBody.String(), nil
 }
@@ -444,10 +447,10 @@ func updateNextInParentPR(
 	if err != nil {
 		return fmt.Errorf("getting PR body of PR URL %q: %w", parentPRData.URL, err)
 	}
-	if parentPrBody.NextPR == prURL {
+	if lo.Contains(parentPrBody.NextPRs, prURL) {
 		return nil
 	}
-	parentPrBody.NextPR = prURL
+	parentPrBody.NextPRs = append(parentPrBody.NextPRs, prURL)
 
 	sp.Suffix = " updating parent PR with forward reference"
 	_, err = shell.Run(

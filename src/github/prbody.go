@@ -3,6 +3,7 @@ package github
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/yapaluc/hg-git/src/util"
@@ -12,15 +13,14 @@ const previousComment = "<!-- previous -->"
 const nextComment = "<!-- next -->"
 const endPreambleComment = "<!-- end preamble -->"
 const prevAndNextTableTemplate = `
-| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s | Current | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s |
+| ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s | Current%s | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s |
 | ------------- | ------------- | ------------- |
 `
 const defaultAnnotation = "&nbsp;"
 
 type PrBody struct {
-	PreviousPR string
-	// TODO: support multiple "next"s
-	NextPR      string
+	PreviousPR  string
+	NextPRs     []string
 	Description string
 }
 
@@ -43,14 +43,16 @@ func newPrBody1(rawPrBody string) (*PrBody, error) {
 				"* **Previous:** ",
 			)
 		} else if strings.HasSuffix(line, nextComment) {
-			prBody.NextPR = strings.TrimPrefix(
-				strings.TrimSuffix(line, nextComment),
-				"* **Next:** ",
-			)
+			prBody.NextPRs = []string{
+				strings.TrimPrefix(
+					strings.TrimSuffix(line, nextComment),
+					"* **Next:** ",
+				),
+			}
 		} else if line == endPreambleComment {
 			// If there is content before the end preamble comment but PreviousPR/NextPR were not populated,
 			// this is not the right format.
-			if i > 0 && prBody.PreviousPR == "" && prBody.NextPR == "" {
+			if i > 0 && prBody.PreviousPR == "" && len(prBody.NextPRs) == 0 {
 				return nil, fmt.Errorf("parsing PR body: %q", rawPrBody)
 			}
 			// There should be a blank line after the end preamble comment, but fail gracefully if not.
@@ -90,7 +92,12 @@ func newPrBody2(rawPrBody string) (*PrBody, error) {
 	if rawTable == "" {
 		return &prBody, nil
 	}
-	prevAndNextTableRegex := fmt.Sprintf(prevAndNextTableTemplate, "(?P<prev>.*)", "(?P<next>.*)")
+	prevAndNextTableRegex := fmt.Sprintf(
+		prevAndNextTableTemplate,
+		"(?P<prev>.*)",
+		"(<br>)*",
+		"(?P<next>.*)",
+	)
 	prevAndNextTableRegex = strings.ReplaceAll(prevAndNextTableRegex, "|", `\|`)
 	prevAndNextTableRegex = strings.Trim(prevAndNextTableRegex, "\n")
 	r := regexp.MustCompile("(?s)" + prevAndNextTableRegex)
@@ -98,30 +105,47 @@ func newPrBody2(rawPrBody string) (*PrBody, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing PR body to find PR urls: %w", err)
 	}
-	if match["prev"] != defaultAnnotation {
-		prBody.PreviousPR = match["prev"]
+	prevParts := strings.Split(match["prev"], "<br>")
+	if prevParts[0] != defaultAnnotation {
+		prBody.PreviousPR = prevParts[0]
 	}
 	if match["next"] != defaultAnnotation {
-		prBody.NextPR = match["next"]
+		prBody.NextPRs = strings.Split(match["next"], "<br>")
 	}
 	return &prBody, nil
 }
 
 func (p *PrBody) String() string {
 	var prevAndNextTable string
-	if p.PreviousPR != "" || p.NextPR != "" {
-		previousAnnotation := defaultAnnotation
+	if p.PreviousPR != "" || len(p.NextPRs) > 0 {
+		var previousPRAnnotation []string
 		if p.PreviousPR != "" {
-			previousAnnotation = p.PreviousPR
+			previousPRAnnotation = append(previousPRAnnotation, p.PreviousPR)
 		}
-		nextAnnotation := defaultAnnotation
-		if p.NextPR != "" {
-			nextAnnotation = p.NextPR
+
+		var nextPRAnnotation []string
+		if len(p.NextPRs) > 0 {
+			sort.Slice(p.NextPRs, func(i, j int) bool {
+				return PRNumFromPRURL(p.NextPRs[i]) < PRNumFromPRURL(p.NextPRs[j])
+			})
+			nextPRAnnotation = append(nextPRAnnotation, p.NextPRs...)
+		} else {
+			nextPRAnnotation = append(nextPRAnnotation, defaultAnnotation)
+		}
+
+		// Make sure previous annotation and current has the same number of lines as next annotation.
+		for i := 0; i < len(nextPRAnnotation)-len(previousPRAnnotation); i++ {
+			previousPRAnnotation = append(previousPRAnnotation, defaultAnnotation)
+		}
+		var currentAnnotation []string
+		for i := 0; i < len(nextPRAnnotation); i++ {
+			currentAnnotation = append(currentAnnotation, "<br>")
 		}
 		prevAndNextTable = fmt.Sprintf(
 			prevAndNextTableTemplate,
-			previousAnnotation,
-			nextAnnotation,
+			strings.Join(previousPRAnnotation, "<br>"),
+			strings.Join(currentAnnotation, ""),
+			strings.Join(nextPRAnnotation, "<br>"),
 		)
 	}
 	return fmt.Sprintf("%s%s\n\n%s", prevAndNextTable, endPreambleComment, p.Description)

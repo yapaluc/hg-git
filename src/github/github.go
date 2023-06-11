@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/yapaluc/hg-git/src/shell"
@@ -67,5 +68,10 @@ func FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
 }
 
 func PRStrFromPRURL(prURL string) string {
-	return "#" + prURL[strings.LastIndex(prURL, "/")+1:]
+	return fmt.Sprintf("#%d", PRNumFromPRURL(prURL))
+}
+
+func PRNumFromPRURL(prURL string) int {
+	i, _ := strconv.Atoi(prURL[strings.LastIndex(prURL, "/")+1:])
+	return i
 }
