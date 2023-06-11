@@ -97,6 +97,12 @@ go build -o bin/hg-git main.go
 go run main.go
 ```
 
+### Running tests
+
+```
+go test github.com/yapaluc/hg-git/src/github
+```
+
 ### Formatter
 
 Installation:
