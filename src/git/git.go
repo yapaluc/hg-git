@@ -148,7 +148,9 @@ type commitMetadata struct {
 
 func (cm *commitMetadata) CleanedBranchNames() []string {
 	return lo.Filter(cm.BranchNames, func(branchName string, _ int) bool {
-		return isLocalBranch(branchName)
+		return !strings.HasPrefix(branchName, "refs/branchless/") &&
+			!strings.HasPrefix(branchName, "origin/") &&
+			!strings.HasPrefix(branchName, "tag: ")
 	})
 }
 
@@ -517,9 +519,4 @@ func newCommitMetadata(
 		body:     strings.Join(lines[start+7:end], "\n"),
 		IsMaster: lo.Contains(branchNames, masterBranch),
 	}, nil
-}
-
-func isLocalBranch(branchName string) bool {
-	return !strings.HasPrefix(branchName, "refs/branchless/") &&
-		!strings.HasPrefix(branchName, "origin/")
 }
