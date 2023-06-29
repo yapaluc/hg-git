@@ -114,6 +114,11 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	sp.Start()
 	defer sp.Stop()
 
+	if isPrIgnored(stackEntry.branchName) {
+		sp.FinalMSG = prefix + "(ignored)\n"
+		return nil
+	}
+
 	wasPushed, err := pushBranch(stackEntry.branchName, cfg.force, sp)
 	if err != nil {
 		return fmt.Errorf("pushing branch %q: %w", stackEntry.branchName, err)
@@ -440,6 +445,10 @@ func updateNextInParentPR(
 	sp *spinner.Spinner,
 ) error {
 	if parentPRData == nil {
+		return nil
+	}
+	if isPrIgnored(parentPRData.HeadRefName) {
+		sp.Suffix = " ignoring parent PR for purposes of forward reference"
 		return nil
 	}
 
