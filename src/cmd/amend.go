@@ -137,18 +137,6 @@ func getMergeArgs(currNode *git.TreeNode) ([]mergeArg, error) {
 	return mergeArgs, nil
 }
 
-func waitForUserInput() {
-	// disable input buffering
-	exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
-	// do not display entered characters on the screen
-	exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
-	// restore the echoing state when exiting
-	defer exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-
-	var b []byte = make([]byte, 1)
-	os.Stdin.Read(b)
-}
-
 func executeRestack(mergeArgs []mergeArg) error {
 	for _, mergeArg := range mergeArgs {
 		_, err := shell.Run(
@@ -191,7 +179,10 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 		}
 		color.Red("Resolve the merge conflicts and press enter to continue.")
 		color.Red("You don't need to add files or continue the merge/rebase.")
-		waitForUserInput()
+		err = waitForUserInput()
+		if err != nil {
+			return fmt.Errorf("waiting for user input: %w", err)
+		}
 		color.Green("Continuing")
 		_, err = shell.Run(
 			shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
@@ -200,6 +191,28 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 		if err != nil {
 			return fmt.Errorf("continuing merge/rebase: %w", err)
 		}
+	}
+	return nil
+}
+
+func waitForUserInput() error {
+	// disable input buffering
+	err := exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
+	if err != nil {
+		return fmt.Errorf("disabling input buffering: %w", err)
+	}
+	// do not display entered characters on the screen
+	err = exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
+	if err != nil {
+		return fmt.Errorf("suppress entered characters: %w", err)
+	}
+	// restore the echoing state when exiting
+	defer exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+
+	var b []byte = make([]byte, 1)
+	_, err = os.Stdin.Read(b)
+	if err != nil {
+		return fmt.Errorf("reading byte from stdin: %w", err)
 	}
 	return nil
 }
