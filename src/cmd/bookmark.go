@@ -31,14 +31,17 @@ func runBookmark(args []string, delete bool) error {
 	if delete {
 		return deleteBranches(args)
 	}
-
 	branchName := args[0]
+	return createBookmark(branchName)
+}
+
+func createBookmark(branchName string) error {
 	_, err := shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf("git switch -C %s", shellescape.Quote(branchName)),
 	)
 	if err != nil {
-		return fmt.Errorf("switching to branch %q: %w", branchName, err)
+		return fmt.Errorf("creating branch: %w", err)
 	}
 	return nil
 }

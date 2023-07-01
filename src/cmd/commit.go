@@ -38,10 +38,9 @@ func runCommit(args []string, msg string) error {
 		return fmt.Errorf("getting master branch: %w", err)
 	}
 
-	cmdStr := fmt.Sprintf("git add --all && git commit -m %s", shellescape.Quote(msg))
-	_, err = shell.Run(shell.Opt{StreamOutputToStdout: true}, cmdStr)
+	err = commitAll(msg)
 	if err != nil {
-		return fmt.Errorf("running commit: %w", err)
+		return err
 	}
 
 	if branch == masterBranch {
@@ -57,6 +56,15 @@ func runCommit(args []string, msg string) error {
 	err = writeBranchDescription(branch, currDesc)
 	if err != nil {
 		return fmt.Errorf("writing branch description: %w", err)
+	}
+	return nil
+}
+
+func commitAll(msg string) error {
+	cmdStr := fmt.Sprintf("git add --all && git commit -m %s", shellescape.Quote(msg))
+	_, err := shell.Run(shell.Opt{StreamOutputToStdout: true}, cmdStr)
+	if err != nil {
+		return fmt.Errorf("running commit: %w", err)
 	}
 	return nil
 }

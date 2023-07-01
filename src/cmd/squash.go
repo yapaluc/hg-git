@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/alessio/shellescape"
 	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/shell"
 
@@ -11,16 +10,16 @@ import (
 )
 
 func newSquashCmd() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:     "squash",
+	return &cobra.Command{
+		Use:     "squash [branch name]",
 		Short:   "Squash the current branch into one commit.",
-		Args:    cobra.NoArgs,
+		Long:    "Squash the current branch into one commit. Works across merges.",
+		Args:    cobra.MaximumNArgs(1),
 		Aliases: []string{"sq"},
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSquash(args)
 		},
 	}
-	return cmd
 }
 
 func runSquash(args []string) error {
@@ -34,21 +33,71 @@ func runSquash(args []string) error {
 		return err
 	}
 
-	node, ok := repoData.BranchNameToNode[currBranch]
-	if !ok {
-		return fmt.Errorf("missing node for branch %q", currBranch)
+	var branchName string
+	if len(args) > 0 {
+		branchName = args[0]
+	} else {
+		branchName = currBranch
 	}
 
+	node, ok := repoData.BranchNameToNode[branchName]
+	if !ok {
+		return fmt.Errorf("missing node for branch %q", branchName)
+	}
+
+	parentBranch := node.BranchParent
+	if parentBranch == nil {
+		return fmt.Errorf("missing parent branch for branch %q", branchName)
+	}
+
+	// Get patch.
+	parentBranchName := parentBranch.CommitMetadata.CleanedBranchNames()[0]
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf(
-			`GIT_EDITOR='f() { if [ "$(basename $1)" = "git-rebase-todo" ]; then sed -i="" "2,\$s/pick/squash/" $1; else true; fi }; f' git rebase -i %s %s`,
-			shellescape.Quote(node.BranchParent.CommitMetadata.CleanedBranchNames()[0]),
-			shellescape.Quote(node.CommitMetadata.CleanedBranchNames()[0]),
-		),
+		fmt.Sprintf("git diff %s %s > diff.patch", parentBranchName, branchName),
 	)
 	if err != nil {
-		return fmt.Errorf("could not run squash")
+		return fmt.Errorf("getting patch: %w", err)
 	}
-	return err
+
+	// Checkout parent branch.
+	err = updateRev(parentBranchName, nil)
+	if err != nil {
+		return fmt.Errorf("checking out parent branch %q: %w", parentBranchName, err)
+	}
+
+	// Recreate branch name at the parent.
+	err = createBookmark(branchName)
+	if err != nil {
+		return fmt.Errorf("creating bookmark for branch %q at the parent: %w", branchName, err)
+	}
+
+	// Apply the patch.
+	_, err = shell.Run(shell.Opt{StreamOutputToStdout: true}, "git apply diff.patch")
+	if err != nil {
+		return fmt.Errorf("applying patch: %w", err)
+	}
+
+	// Remove the patch file.
+	_, err = shell.Run(shell.Opt{}, "rm diff.patch")
+	if err != nil {
+		return fmt.Errorf("removing patch: %w", err)
+	}
+
+	// Commit using the existing title.
+	branchTitle := node.CommitMetadata.BranchDescription.Title
+	err = commitAll(branchTitle)
+	if err != nil {
+		return err
+	}
+
+	// Checkout the original branch.
+	if branchName != currBranch {
+		err = updateRev(currBranch, nil)
+		if err != nil {
+			return fmt.Errorf("checking out original branch %q: %w", currBranch, err)
+		}
+	}
+
+	return nil
 }
