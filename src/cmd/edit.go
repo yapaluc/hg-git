@@ -13,7 +13,7 @@ import (
 
 func newEditCmd() *cobra.Command {
 	var cmd = &cobra.Command{
-		Use:   "edit [bramch name]",
+		Use:   "edit [branch name]",
 		Short: "Edits the branch description.",
 		Long: `Edits the branch description of the given branch (defaults to the current branch).
 			First line should be the desired PR title, followed by an empty line, followed by the desired PR body.
