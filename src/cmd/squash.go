@@ -54,7 +54,7 @@ func runSquash(args []string) error {
 	parentBranchName := parentBranch.CommitMetadata.CleanedBranchNames()[0]
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git diff %s %s > diff.patch", parentBranchName, branchName),
+		fmt.Sprintf("git diff-index %s --binary > diff.patch", parentBranchName),
 	)
 	if err != nil {
 		return fmt.Errorf("getting patch: %w", err)
