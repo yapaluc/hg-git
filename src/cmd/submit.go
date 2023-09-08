@@ -203,25 +203,15 @@ func createOrUpdatePR(
 	var parentPRData *github.PullRequest
 	if !parent.CommitMetadata.IsEffectiveMaster() {
 		sp.Suffix = " fetching parent PR"
-		parentBranch := parent.CommitMetadata.CleanedBranchNames()[0]
-		parentPRDataLocal, err := github.FetchPRForBranch(parentBranch)
-		parentPRData = parentPRDataLocal
+		parentPRDataLocal, err := getPRDataForNode(parent)
 		if err != nil {
 			return "", statusUnknown, fmt.Errorf(
-				"fetching PR data for parent branch of %q (%q): %w",
+				"fetching PR data for parent branch of %q: %w",
 				stackEntry.branchName,
-				parentBranch,
 				err,
 			)
 		}
-		if parentPRData == nil {
-			return "", statusUnknown, fmt.Errorf(
-				"parent branch of %q (%q) does not have a PR: %w",
-				stackEntry.branchName,
-				parentBranch,
-				err,
-			)
-		}
+		parentPRData = parentPRDataLocal
 	}
 
 	sp.Suffix = " fetching current PR"
@@ -495,4 +485,21 @@ func addPRURLToBranchDescription(
 		)
 	}
 	return nil
+}
+
+func getPRDataForNode(node *git.TreeNode) (*github.PullRequest, error) {
+	branchName := node.CommitMetadata.CleanedBranchNames()[0]
+	prData, err := github.FetchPRForBranch(branchName)
+	if err != nil {
+		return nil, fmt.Errorf("fetching PR data for branch %q: %w", branchName, err)
+	}
+
+	if prData == nil {
+		if isPrIgnored(branchName) {
+			return github.GetPRDataForIgnoredBranch(branchName), nil
+		}
+		return nil, fmt.Errorf("no PR found for branch %q: %w", branchName, err)
+	}
+
+	return prData, nil
 }

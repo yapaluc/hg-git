@@ -67,6 +67,12 @@ func FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
 	return &resp, nil
 }
 
+func GetPRDataForIgnoredBranch(branchName string) *PullRequest {
+	return &PullRequest{
+		HeadRefName: branchName,
+	}
+}
+
 func PRStrFromPRURL(prURL string) string {
 	return fmt.Sprintf("#%d", PRNumFromPRURL(prURL))
 }
