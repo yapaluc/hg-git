@@ -20,25 +20,29 @@ import (
 func newSubmitCmd() *cobra.Command {
 	var draft bool
 	var force bool
+	var noVerify bool
 	var cmd = &cobra.Command{
 		Use:   "submit [-n draft]",
 		Short: "Submits GitHub Pull Requests for the current stack (current branch and its ancestors).",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSubmit(submitCfg{
-				draft: draft,
-				force: force,
+				draft:    draft,
+				force:    force,
+				noVerify: noVerify,
 			})
 		},
 	}
 	cmd.Flags().BoolVarP(&draft, "draft", "n", false, "Create Pull Request as a draft")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force push")
+	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "Bypass the pre-push hook")
 	return cmd
 }
 
 type submitCfg struct {
 	draft           bool
 	force           bool
+	noVerify        bool
 	gitMasterBranch string
 }
 
@@ -119,7 +123,7 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 		return nil
 	}
 
-	wasPushed, err := pushBranch(stackEntry.branchName, cfg.force, sp)
+	wasPushed, err := pushBranch(stackEntry.branchName, cfg, sp)
 	if err != nil {
 		return fmt.Errorf("pushing branch %q: %w", stackEntry.branchName, err)
 	}
@@ -150,15 +154,24 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	return nil
 }
 
-func pushBranch(branchName string, force bool, sp *spinner.Spinner) (bool, error) {
+func pushBranch(branchName string, cfg submitCfg, sp *spinner.Spinner) (bool, error) {
 	sp.Suffix = " pushing to remote"
 	var forceFlag string
-	if force {
+	if cfg.force {
 		forceFlag = " -f"
+	}
+	var noVerifyFlag string
+	if cfg.noVerify {
+		noVerifyFlag = " --no-verify"
 	}
 	out, err := shell.Run(
 		shell.Opt{CombinedStdoutStderrOutput: true},
-		fmt.Sprintf("git push origin %s%s", shellescape.Quote(branchName), forceFlag),
+		fmt.Sprintf(
+			"git push origin %s%s%s",
+			shellescape.Quote(branchName),
+			forceFlag,
+			noVerifyFlag,
+		),
 	)
 	if err != nil {
 		if strings.Contains(out, "(non-fast-forward)") {
@@ -167,7 +180,7 @@ func pushBranch(branchName string, force bool, sp *spinner.Spinner) (bool, error
 				err,
 			)
 		}
-		return false, fmt.Errorf("running git push: %w", err)
+		return false, fmt.Errorf("running git push: %w: %s", err, out)
 	}
 
 	if strings.Contains(out, "Everything up-to-date") {
