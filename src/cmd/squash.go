@@ -128,7 +128,7 @@ func getCommitToStartPatchAtAndCommitMessage(
 	}
 
 	originNode, ok := repoData.BranchNameToNode["origin/"+targetBranchName]
-	if !ok {
+	if !ok || force {
 		// If no origin/BRANCHNAME local branch, branch hasn't been pushed yet, so all commits on the branch are safe to squash.
 		commitToStartPatchAt := parentBranch.CommitMetadata.ShortCommitHash
 		commitMessage := node.CommitMetadata.BranchDescription.Title
@@ -175,12 +175,7 @@ func getCommitToStartPatchAtAndCommitMessage(
 	}
 
 	// Else, all commits have been pushed, so it is not safe to squash.
-	if !force {
-		return "", "", fmt.Errorf(
-			"not squashing since all commits on the branch have already been pushed. pass -f to force a squash",
-		)
-	}
-	commitToStartPatchAt := parentBranch.CommitMetadata.ShortCommitHash
-	commitMessage := node.CommitMetadata.BranchDescription.Title
-	return commitToStartPatchAt, commitMessage, nil
+	return "", "", fmt.Errorf(
+		"not squashing since all commits on the branch have already been pushed. pass -f to force a squash",
+	)
 }
