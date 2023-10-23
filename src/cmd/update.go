@@ -28,6 +28,7 @@ func runUpdate(args []string) error {
 	return updateRev(rev, nil)
 }
 
+// Checks out the given rev, snapping to a branch name if possible.
 func updateRev(rev string, excludeBranch *string) error {
 	if rev == "" {
 		return fmt.Errorf("rev not provided")
