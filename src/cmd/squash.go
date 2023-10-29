@@ -145,6 +145,26 @@ func getCommitToStartPatchAtAndCommitMessage(
 			),
 		)
 		isOriginAncestorOfBranch := err == nil
+		result, err := shell.Run(
+			shell.Opt{},
+			fmt.Sprintf(
+				"git log --merges %s..%s",
+				originNode.CommitMetadata.ShortCommitHash,
+				node.CommitMetadata.ShortCommitHash,
+			),
+		)
+		if err != nil {
+			return "", "", fmt.Errorf(
+				"calling git log to check for merge commits",
+			)
+		}
+		hasMergeCommits := len(result) > 0
+
+		if hasMergeCommits {
+			return "", "", fmt.Errorf(
+				"not squashing since there are merge commits on the branch after the commit has been pushed. pass -f to force a squash",
+			)
+		}
 
 		if isOriginAncestorOfBranch {
 			// If origin/BRANCHNAME local branch does not point to BRANCHNAME and is an ancestor of BRANCHNAME,
