@@ -25,18 +25,18 @@ func GetCurrentBranch() (string, error) {
 	return strings.TrimSpace(currBranch), nil
 }
 
-// https://stackoverflow.com/a/68089437
+// https://stackoverflow.com/a/45560221
 func GetMasterBranch() (string, error) {
 	branch, err := shell.Run(
 		shell.Opt{},
-		`git ls-remote --symref origin HEAD | head -1 | awk '{print $2}'`,
+		`git branch -a | awk '/remotes\/origin\/HEAD/ {print $NF}'`,
 	)
 	if err != nil {
 		return "", fmt.Errorf("getting master branch name: %w", err)
 	}
-	candidateName := strings.TrimPrefix(branch, "refs/heads/")
+	candidateName := strings.TrimPrefix(strings.TrimSpace(branch), "origin/")
 	if candidateName == "" {
-		return "", fmt.Errorf("getting master branch name: remote HEAD not found")
+		return "", fmt.Errorf("getting master branch name: remotes/origin/HEAD branch not found")
 	}
 	return candidateName, nil
 }
