@@ -34,8 +34,11 @@ func GetMasterBranch() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getting master branch name: %w", err)
 	}
-
-	return strings.TrimPrefix(strings.TrimSpace(branch), "origin/"), nil
+	candidateName := strings.TrimPrefix(strings.TrimSpace(branch), "origin/")
+	if candidateName == "" {
+		return "", fmt.Errorf("getting master branch name: remotes/origin/HEAD branch not found")
+	}
+	return candidateName, nil
 }
 
 func GetRemoteURL() (string, error) {
