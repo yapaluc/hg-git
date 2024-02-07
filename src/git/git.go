@@ -38,7 +38,7 @@ func GetMasterBranch() (string, error) {
 	if candidateName == "" {
 		// https://stackoverflow.com/questions/28666357/how-to-get-default-git-branch#comment105620968_44750379
 		return "", fmt.Errorf(
-			"getting master branch name: remotes/origin/HEAD branch not found. try running `git remote set-head origin --auto` to sync the ref from upstream",
+			"getting master branch name: remotes/origin/HEAD ref not found. try running `git remote set-head origin --auto` to sync the ref from upstream",
 		)
 	}
 	return candidateName, nil
