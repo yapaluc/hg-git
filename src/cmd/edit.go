@@ -61,7 +61,8 @@ const template = `%s
 %s   %s
 %s Lines starting with '%s' will be stripped.
 `
-const filePrefix = "EDIT_BRANCH_DESC_"
+
+const editFilePrefix = "EDIT_BRANCH_DESC_"
 
 func editByBranchName(branchName string) error {
 	currDesc, err := getBranchDescriptionWithFallback(branchName)
@@ -89,7 +90,7 @@ func editByBranchName(branchName string) error {
 			commentChar,
 			commentChar,
 		),
-		filePrefix,
+		editFilePrefix,
 		commentChar,
 	)
 	if err != nil {

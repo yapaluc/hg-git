@@ -11,23 +11,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const squashPatchFilePrefix = "PATCH_FILE_"
+
 func newSquashCmd() *cobra.Command {
 	var force bool
 	var cmd = &cobra.Command{
 		Use:     "squash [branch name] [-f force]",
 		Short:   "Squash the current branch into one commit.",
-		Long:    "Squash the current branch into one commit. Works across merges.",
+		Long:    "Squash the current branch into one commit. Works across merges and in the middle of a stack.",
 		Args:    cobra.MaximumNArgs(1),
 		Aliases: []string{"sq"},
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runSquash(args, force)
 		},
 	}
-	cmd.Flags().BoolVarP(&force, "force", "f", false, "Use a default message")
+	cmd.Flags().
+		BoolVarP(&force, "force", "f", false, "Force the squash through, despite the fact that commits have been pushed to the remote or that the branch is in the middle of a stack")
 	return cmd
 }
-
-// TODO: update squash command to be stack-aware and work in the middle of a stack
 
 func runSquash(args []string, force bool) error {
 	repoData, err := git.NewRepoData()
@@ -47,18 +48,87 @@ func runSquash(args []string, force bool) error {
 		branchName = currBranch
 	}
 
-	commitToStartPatchAt, commitMessage, err := getCommitToStartPatchAtAndCommitMessage(
-		repoData,
-		branchName,
-		force,
-	)
+	lastBranch, err := runSquashOnBranchAndDescendants(repoData, branchName, force)
 	if err != nil {
-		return fmt.Errorf("getting squash details for branch %q: %w", branchName, err)
+		return fmt.Errorf("running squash on branch %q and its descendants: %w", branchName, err)
+	}
+
+	// Checkout the original branch.
+	if lastBranch != currBranch {
+		err = updateRev(currBranch, nil)
+		if err != nil {
+			return fmt.Errorf("checking out original branch %q: %w", currBranch, err)
+		}
+	}
+
+	return nil
+}
+
+// Implements a depth-first traversal to squash a branch and its descendants.
+// Returns the name of the last branch processed.
+func runSquashOnBranchAndDescendants(
+	repoData *git.RepoData,
+	branchName string,
+	force bool,
+) (string, error) {
+	node, ok := repoData.BranchNameToNode[branchName]
+	if !ok {
+		return "", fmt.Errorf("missing node for branch %q", branchName)
+	}
+
+	if len(node.BranchChildren) > 0 && !force {
+		return "", fmt.Errorf(
+			"not squashing since branch %q has descendant branches. pass -f to force a squash of branch %q and its descendants",
+			branchName,
+			branchName,
+		)
+	}
+
+	// Squash current branch
+	lastBranchName := branchName
+	err := runSquashOnBranch(repoData, branchName, force)
+	if err != nil {
+		return "", fmt.Errorf("running squash on branch %q: %w", branchName, err)
+	}
+
+	// Recurse on children
+	for _, childNode := range node.BranchChildren {
+		childBranchName := childNode.CommitMetadata.CleanedBranchNames()[0]
+		lastBranchNameProcessedInChildSubtree, err := runSquashOnBranchAndDescendants(
+			repoData,
+			childBranchName,
+			force,
+		)
+		if err != nil {
+			return "", fmt.Errorf(
+				"running squash on child branch %q of %q: %w",
+				childBranchName,
+				branchName,
+				err,
+			)
+		}
+		lastBranchName = lastBranchNameProcessedInChildSubtree
+	}
+
+	return lastBranchName, nil
+}
+
+func runSquashOnBranch(repoData *git.RepoData, branchName string, force bool) error {
+	// Checkout branch.
+	err := updateRev(branchName, nil)
+	if err != nil {
+		return fmt.Errorf("checking out branch %q: %w", branchName, err)
+	}
+
+	// Get squash details.
+	squashDetails, err := getSquashDetails(repoData, branchName, force)
+	if err != nil {
+		return fmt.Errorf("getting squash details: %w", err)
 	}
 
 	// Prepare patch file.
 	tmpDir := os.TempDir()
-	tmpFile, err := os.CreateTemp(tmpDir, filePrefix)
+	tmpFile, err := os.CreateTemp(tmpDir, fmt.Sprintf("%s%s_", squashPatchFilePrefix, branchName))
 	if err != nil {
 		return fmt.Errorf("creating temp file for patch: %w", err)
 	}
@@ -68,16 +138,24 @@ func runSquash(args []string, force bool) error {
 	// Get patch.
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git diff-index %s --binary > %s", commitToStartPatchAt, tmpFile.Name()),
+		fmt.Sprintf(
+			"git diff-index %s --binary > %s",
+			squashDetails.commitToCalculatePatchFrom,
+			tmpFile.Name(),
+		),
 	)
 	if err != nil {
 		return fmt.Errorf("getting patch: %w", err)
 	}
 
 	// Checkout parent branch.
-	err = updateRev(commitToStartPatchAt, nil)
+	err = updateRev(squashDetails.branchNameToPatchAt, nil)
 	if err != nil {
-		return fmt.Errorf("checking out parent branch %q: %w", commitToStartPatchAt, err)
+		return fmt.Errorf(
+			"checking out parent branch %q: %w",
+			squashDetails.branchNameToPatchAt,
+			err,
+		)
 	}
 
 	// Recreate branch name at the parent.
@@ -96,43 +174,43 @@ func runSquash(args []string, force bool) error {
 	}
 
 	// Commit.
-	err = commitAll(commitMessage)
+	err = commitAll(squashDetails.commitMessage)
 	if err != nil {
-		return err
+		return fmt.Errorf("committing: %w", err)
 	}
 
-	// Checkout the original branch.
-	if branchName != currBranch {
-		err = updateRev(currBranch, nil)
-		if err != nil {
-			return fmt.Errorf("checking out original branch %q: %w", currBranch, err)
-		}
-	}
-
-	return nil
+	return err
 }
 
-func getCommitToStartPatchAtAndCommitMessage(
+type squashDetails struct {
+	commitToCalculatePatchFrom string
+	branchNameToPatchAt        string
+	commitMessage              string
+}
+
+func getSquashDetails(
 	repoData *git.RepoData,
 	targetBranchName string,
 	force bool,
-) (string, string, error) {
-	node, ok := repoData.BranchNameToNode[targetBranchName]
-	if !ok {
-		return "", "", fmt.Errorf("missing node for branch %q", targetBranchName)
-	}
-
+) (squashDetails, error) {
+	node := repoData.BranchNameToNode[targetBranchName]
 	parentBranch := node.BranchParent
 	if parentBranch == nil {
-		return "", "", fmt.Errorf("missing parent branch for branch %q", targetBranchName)
+		return squashDetails{}, fmt.Errorf("missing parent branch for branch %q", targetBranchName)
 	}
+
+	parentBranchName := parentBranch.CommitMetadata.CleanedBranchNames()[0]
 
 	originNode, ok := repoData.BranchNameToNode["origin/"+targetBranchName]
 	if !ok || force {
 		// If no origin/BRANCHNAME local branch, branch hasn't been pushed yet, so all commits on the branch are safe to squash.
 		commitToStartPatchAt := parentBranch.CommitMetadata.ShortCommitHash
 		commitMessage := node.CommitMetadata.BranchDescription.Title
-		return commitToStartPatchAt, commitMessage, nil
+		return squashDetails{
+			commitToCalculatePatchFrom: commitToStartPatchAt,
+			branchNameToPatchAt:        parentBranchName,
+			commitMessage:              commitMessage,
+		}, nil
 	}
 
 	if originNode.CommitMetadata.ShortCommitHash != node.CommitMetadata.ShortCommitHash {
@@ -154,14 +232,14 @@ func getCommitToStartPatchAtAndCommitMessage(
 			),
 		)
 		if err != nil {
-			return "", "", fmt.Errorf(
+			return squashDetails{}, fmt.Errorf(
 				"calling git log to check for merge commits",
 			)
 		}
 		hasMergeCommits := len(result) > 0
 
 		if hasMergeCommits {
-			return "", "", fmt.Errorf(
+			return squashDetails{}, fmt.Errorf(
 				"not squashing since there are merge commits on the branch after the commit has been pushed. pass -f to force a squash",
 			)
 		}
@@ -181,21 +259,29 @@ func getCommitToStartPatchAtAndCommitMessage(
 				),
 			)
 			if err != nil {
-				return "", "", fmt.Errorf("running git log: %w", err)
+				return squashDetails{}, fmt.Errorf("running git log: %w", err)
 			}
 			commitMessage := strings.TrimSpace(out)
-			return commitToStartPatchAt, commitMessage, nil
+			return squashDetails{
+				commitToCalculatePatchFrom: commitToStartPatchAt,
+				branchNameToPatchAt:        parentBranchName,
+				commitMessage:              commitMessage,
+			}, nil
 		}
 		// If origin/BRANCHNAME local branch exists but is not an ancestor of BRANCHNAME,
 		// there must have been a previous squash so this origin/BRANCHNAME local branch can be ignored
 		// and we can squash the entire branch.
 		commitToStartPatchAt := parentBranch.CommitMetadata.ShortCommitHash
 		commitMessage := node.CommitMetadata.BranchDescription.Title
-		return commitToStartPatchAt, commitMessage, nil
+		return squashDetails{
+			commitToCalculatePatchFrom: commitToStartPatchAt,
+			branchNameToPatchAt:        parentBranchName,
+			commitMessage:              commitMessage,
+		}, nil
 	}
 
 	// Else, all commits have been pushed, so it is not safe to squash.
-	return "", "", fmt.Errorf(
+	return squashDetails{}, fmt.Errorf(
 		"not squashing since all commits on the branch have already been pushed. pass -f to force a squash",
 	)
 }
