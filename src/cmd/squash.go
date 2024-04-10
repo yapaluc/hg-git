@@ -128,7 +128,10 @@ func runSquashOnBranch(repoData *git.RepoData, branchName string, force bool) er
 
 	// Prepare patch file.
 	tmpDir := os.TempDir()
-	tmpFile, err := os.CreateTemp(tmpDir, fmt.Sprintf("%s%s_", squashPatchFilePrefix, branchName))
+
+	tmpFileName := fmt.Sprintf("%s%s_", squashPatchFilePrefix, branchName)
+	tmpFileName = strings.ReplaceAll(tmpFileName, string(os.PathSeparator), "-")
+	tmpFile, err := os.CreateTemp(tmpDir, tmpFileName)
 	if err != nil {
 		return fmt.Errorf("creating temp file for patch: %w", err)
 	}
