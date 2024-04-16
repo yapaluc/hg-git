@@ -34,6 +34,7 @@ func Execute() {
 		newSquashCmd(),
 		newStatusCmd(),
 		newSubmitCmd(),
+		newUncommitCmd(),
 		newUpdateCmd(),
 	)
 	if err := rootCmd.Execute(); err != nil {
