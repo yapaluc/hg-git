@@ -44,7 +44,7 @@ func runUncommit(_ *cobra.Command, args []string) error {
 	if parentBranch == nil {
 		return fmt.Errorf("missing parent branch for branch %q", branchName)
 	}
-	parentBranchName := parentBranch.CommitMetadata.CleanedBranchNames()[0]
+	parentCommitHash := parentBranch.CommitMetadata.CommitHash
 
 	// Prepare patch file.
 	tmpDir := os.TempDir()
@@ -63,7 +63,7 @@ func runUncommit(_ *cobra.Command, args []string) error {
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf(
 			"git diff-index %s --binary > %s",
-			parentBranchName,
+			parentCommitHash,
 			tmpFile.Name(),
 		),
 	)
@@ -71,16 +71,10 @@ func runUncommit(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("getting patch: %w", err)
 	}
 
-	// Checkout parent branch.
-	err = updateRev(parentBranchName, nil)
+	// Checkout parent branch/commit.
+	err = updateRev(parentCommitHash, nil)
 	if err != nil {
-		return fmt.Errorf("checking out parent branch %q: %w", parentBranchName, err)
-	}
-
-	// Recreate branch name at the parent.
-	err = createBookmark(branchName, "")
-	if err != nil {
-		return fmt.Errorf("creating bookmark for branch %q at the parent: %w", branchName, err)
+		return fmt.Errorf("checking out parent branch/commit %q: %w", parentCommitHash, err)
 	}
 
 	// Apply the patch.
