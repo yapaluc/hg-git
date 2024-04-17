@@ -21,6 +21,7 @@ func newSubmitCmd() *cobra.Command {
 	var draft bool
 	var force bool
 	var noVerify bool
+	var pushOnly bool
 	var cmd = &cobra.Command{
 		Use:   "submit [-n draft]",
 		Short: "Submits GitHub Pull Requests for the current stack (current branch and its ancestors).",
@@ -30,12 +31,15 @@ func newSubmitCmd() *cobra.Command {
 				draft:    draft,
 				force:    force,
 				noVerify: noVerify,
+				pushOnly: pushOnly,
 			})
 		},
 	}
 	cmd.Flags().BoolVarP(&draft, "draft", "n", false, "Create Pull Request as a draft")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Force push")
-	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "Bypass the pre-push hook")
+	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "Bypass pre-push hooks")
+	cmd.Flags().
+		BoolVarP(&pushOnly, "push-only", "p", false, "Push branches only, do not create/manage Pull Requests")
 	return cmd
 }
 
@@ -43,6 +47,7 @@ type submitCfg struct {
 	draft           bool
 	force           bool
 	noVerify        bool
+	pushOnly        bool
 	gitMasterBranch string
 }
 
@@ -126,6 +131,32 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 	wasPushed, err := pushBranch(stackEntry.branchName, cfg, sp)
 	if err != nil {
 		return fmt.Errorf("pushing branch %q: %w", stackEntry.branchName, err)
+	}
+
+	if cfg.pushOnly {
+		var finalStatus status
+		if wasPushed {
+			finalStatus = statusUpdated
+		} else {
+			finalStatus = statusSkipped
+		}
+
+		var parentBranch string
+		parent := stackEntry.node.BranchParent
+		if !parent.CommitMetadata.IsEffectiveMaster() {
+			parentBranch = parent.CommitMetadata.CleanedBranchNames()[0]
+		}
+		branchURL, err := github.BranchURLFromBranchName(stackEntry.branchName, parentBranch)
+		if err != nil {
+			branchURL = ""
+		}
+		branchLink := util.Linkify(stackEntry.branchName, branchURL)
+		sp.FinalMSG = prefix + fmt.Sprintf(
+			"%s (%s)\n",
+			color.New(color.Bold).Sprint(branchLink),
+			finalStatus.String(),
+		)
+		return nil
 	}
 
 	prURL, prStatus, err := createOrUpdatePR(cfg, stackEntry, sp)
@@ -216,7 +247,8 @@ func createOrUpdatePR(
 	var parentPRData *github.PullRequest
 	if !parent.CommitMetadata.IsEffectiveMaster() {
 		sp.Suffix = " fetching parent PR"
-		parentPRDataLocal, err := getPRDataForNode(parent)
+		var err error
+		parentPRData, err = getPRDataForNode(parent)
 		if err != nil {
 			return "", statusUnknown, fmt.Errorf(
 				"fetching PR data for parent branch of %q: %w",
@@ -224,7 +256,6 @@ func createOrUpdatePR(
 				err,
 			)
 		}
-		parentPRData = parentPRDataLocal
 	}
 
 	sp.Suffix = " fetching current PR"
