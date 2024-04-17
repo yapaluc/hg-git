@@ -14,32 +14,53 @@ import (
 
 func newBookmarkCmd() *cobra.Command {
 	var delete bool
+	var rev string
 	var cmd = &cobra.Command{
-		Use:     "bookmark <name> [-d delete]",
+		Use:     "bookmark <name> [-d delete] [-r rev]",
 		Short:   "Bookmark (branch) management.",
 		Aliases: []string{"book"},
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runBookmark(args, delete)
+			return runBookmark(args, delete, rev)
 		},
 	}
 	cmd.Flags().BoolVarP(&delete, "delete", "d", false, "Delete the bookmark")
+	cmd.Flags().StringVarP(&rev, "rev", "r", "", "Revision to bookmark (not relevant for delete)")
 	return cmd
 }
 
-func runBookmark(args []string, delete bool) error {
+func runBookmark(args []string, delete bool, rev string) error {
 	if delete {
 		return deleteBranches(args)
 	}
 	branchName := args[0]
-	return createBookmark(branchName)
+	return createBookmark(branchName, rev)
 }
 
-func createBookmark(branchName string) error {
-	_, err := shell.Run(
-		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git switch -C %s", shellescape.Quote(branchName)),
-	)
+func createBookmark(branchName string, rev string) error {
+	var cmd string
+	if rev != "" {
+		currBranch, err := git.GetCurrentBranch()
+		if err != nil {
+			return fmt.Errorf("getting current branch: %w", err)
+		}
+		if branchName == currBranch {
+			err := updateRev(currBranch, &currBranch)
+			if err != nil {
+				return fmt.Errorf("switching before creating branch %q: %w", branchName, err)
+			}
+		}
+
+		cmd = fmt.Sprintf(
+			"git branch %s %s -f",
+			shellescape.Quote(branchName),
+			shellescape.Quote(rev),
+		)
+	} else {
+		cmd = fmt.Sprintf("git switch -C %s", shellescape.Quote(branchName))
+	}
+
+	_, err := shell.Run(shell.Opt{StreamOutputToStdout: true}, cmd)
 	if err != nil {
 		return fmt.Errorf("creating branch: %w", err)
 	}

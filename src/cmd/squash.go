@@ -162,7 +162,7 @@ func runSquashOnBranch(repoData *git.RepoData, branchName string, force bool) er
 	}
 
 	// Recreate branch name at the parent.
-	err = createBookmark(branchName)
+	err = createBookmark(branchName, "")
 	if err != nil {
 		return fmt.Errorf("creating bookmark for branch %q at the parent: %w", branchName, err)
 	}
