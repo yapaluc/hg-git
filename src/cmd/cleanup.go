@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/shell"
 
-	"github.com/alessio/shellescape"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +22,11 @@ func newCleanupCmd() *cobra.Command {
 }
 
 func runCleanup(cmd *cobra.Command, args []string) error {
+	currentBranch, err := git.GetCurrentBranch()
+	if err != nil {
+		return err
+	}
+
 	prunedBranches, err := pruneBranches()
 	if err != nil {
 		return err
@@ -70,16 +75,12 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Checkout master.
-	_, err = shell.Run(
-		shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
-		fmt.Sprintf("git switch %s", shellescape.Quote(repoData.MasterBranch)),
-	)
-	if err != nil {
-		return fmt.Errorf("checking out master branch %q: %w", repoData.MasterBranch, err)
+	// Checkout the original branch or master if the original branch was pruned.
+	branchToCheckout := currentBranch
+	if lo.Contains(prunedBranches, currentBranch) {
+		branchToCheckout = repoData.MasterBranch
 	}
-
-	return nil
+	return updateRev(branchToCheckout, nil)
 }
 
 const prunePrefix = " * [pruned] origin/"
