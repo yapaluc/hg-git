@@ -36,12 +36,9 @@ func NewRepoData() (*RepoData, error) {
 	repoData.MasterBranch = masterBranch
 
 	// Build commit graph.
-	commitMetadatas, err := newCommitMetadatas(masterBranch)
+	err = repoData.buildCommitGraph()
 	if err != nil {
-		return nil, fmt.Errorf("creating commit metadatas: %w", err)
-	}
-	for _, commitMetadata := range commitMetadatas {
-		repoData.addCommit(commitMetadata)
+		return nil, fmt.Errorf("building commit graph: %w", err)
 	}
 
 	// Build branch graph.
@@ -57,6 +54,17 @@ func NewRepoData() (*RepoData, error) {
 	}
 
 	return repoData, nil
+}
+
+func (rd *RepoData) buildCommitGraph() error {
+	commitMetadatas, err := newCommitMetadatas(rd.MasterBranch)
+	if err != nil {
+		return fmt.Errorf("creating commit metadatas: %w", err)
+	}
+	for _, commitMetadata := range commitMetadatas {
+		rd.addCommit(commitMetadata)
+	}
+	return nil
 }
 
 func (rd *RepoData) addCommit(commitMetadata *commitMetadata) {
