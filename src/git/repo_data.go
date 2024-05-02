@@ -9,6 +9,8 @@ import (
 	"github.com/yapaluc/hg-git/src/util"
 )
 
+const branchGraphLimit = 29
+
 type RepoData struct {
 	MasterBranch   string
 	BranchRootNode *TreeNode
@@ -84,6 +86,20 @@ func (rd *RepoData) addCommitMetadata() error {
 
 // NOTE: This only works for up to 29 branches. This is a limitation of `git show-branch`.
 func (rd *RepoData) buildBranchGraph() error {
+	branchLines, err := shell.RunAndCollectLines(
+		shell.Opt{},
+		"git branch",
+	)
+	if err != nil {
+		return fmt.Errorf("getting branch names: %w", err)
+	}
+	if len(branchLines) > branchGraphLimit {
+		return fmt.Errorf(
+			"cannot build branch graph because the number of branches exceeds the limit of `git show-branch` (%d)",
+			branchGraphLimit,
+		)
+	}
+
 	// Find all the branches and their descendants.
 	// Explanation of git show-branch: https://wincent.com/wiki/Understanding_the_output_of_%22git_show-branch%22
 	output, err := shell.Run(
