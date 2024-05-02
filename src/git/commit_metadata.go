@@ -45,7 +45,7 @@ func populateCommitMetadata(commitHashToNode map[string]*TreeNode, masterBranch 
 		for revList[i] != endBodyMarker {
 			i++
 		}
-		commitMetadata, err := newCommitMetadata(revList, start, i, masterBranch)
+		commitMetadata, err := newCommitMetadata(revList, start, masterBranch)
 		if err != nil {
 			return fmt.Errorf("parsing commit metadata: %w", err)
 		}
@@ -91,7 +91,7 @@ func getRevList(commitHashes []string) ([]string, error) {
 
 func newCommitMetadata(
 	lines []string,
-	start, end int,
+	start int,
 	masterBranch string,
 ) (*commitMetadata, error) {
 	firstLineHashes := strings.Split(lines[start], " ")

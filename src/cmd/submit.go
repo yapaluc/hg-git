@@ -394,7 +394,7 @@ func updatePR(
 		args = append(args, "--title")
 		args = append(args, shellescape.Quote(commitMetadata.BranchDescription.Title))
 	}
-	updatedPRBody, err := getUpdatedPRBody(cfg, stackEntry, prData, parentBranch, parentPRData)
+	updatedPRBody, err := getUpdatedPRBody(stackEntry, prData, parentPRData)
 	if err != nil {
 		return "", statusUnknown, fmt.Errorf(
 			"getting updated PR body for branch %q: %w",
@@ -431,10 +431,8 @@ func updatePR(
 }
 
 func getUpdatedPRBody(
-	cfg submitCfg,
 	stackEntry *stackEntry,
 	prData *github.PullRequest,
-	parentBranch string,
 	parentPRData *github.PullRequest,
 ) (string, error) {
 	prBody, err := github.NewPrBody(prData.Body)

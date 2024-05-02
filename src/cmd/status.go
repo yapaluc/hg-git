@@ -34,7 +34,7 @@ func runStatus(args []string, change string) error {
 	return err
 }
 
-func showChangedFiles(args []string, change string) error {
+func showChangedFiles(_ []string, change string) error {
 	repoData, err := git.NewRepoData()
 	if err != nil {
 		return err

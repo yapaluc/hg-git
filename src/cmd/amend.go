@@ -195,9 +195,9 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 	return nil
 }
 
-func waitForUserInput() error {
+func waitForUserInput() (err error) {
 	// disable input buffering
-	err := exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
+	err = exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
 	if err != nil {
 		return fmt.Errorf("disabling input buffering: %w", err)
 	}
@@ -207,7 +207,9 @@ func waitForUserInput() error {
 		return fmt.Errorf("suppress entered characters: %w", err)
 	}
 	// restore the echoing state when exiting
-	defer exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+	defer func() {
+		err = exec.Command("stty", "-F", "/dev/tty", "echo").Run()
+	}()
 
 	var b []byte = make([]byte, 1)
 	_, err = os.Stdin.Read(b)

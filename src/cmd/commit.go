@@ -27,7 +27,7 @@ func newCommitCmd() *cobra.Command {
 	return cmd
 }
 
-func runCommit(args []string, msg string) error {
+func runCommit(_ []string, msg string) error {
 	branch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("getting current branch: %w", err)
