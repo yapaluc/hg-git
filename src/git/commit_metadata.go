@@ -15,29 +15,31 @@ import (
 const endBodyMarker = "__ENDBODY__"
 
 type commitMetadata struct {
-	CommitHash        string
+	// Minimal fields populated upon construction
+	CommitHash string
+
+	// Fields supplemented by RepoData
+	IsPartOfMaster    bool
+	BranchDescription *BranchDescription
+
+	// Fields supplemented later by this file
 	ShortCommitHash   string
-	childrenHashes    []string
 	Author            string
 	TimestampRelative string
 	Timestamp         int64
 	BranchNames       []string
 	IsHead            bool
 	Title             string
-	body              string
-	BranchDescription *BranchDescription
 	IsMaster          bool
-	IsPartOfMaster    bool
 }
 
-// Build commitMetadatas for all commits in the repo.
-func newCommitMetadatas(masterBranch string) ([]*commitMetadata, error) {
-	revList, err := getRevList()
+// Mutates the commitMetadata of each node in the given map.
+func populateCommitMetadata(commitHashToNode map[string]*TreeNode, masterBranch string) error {
+	revList, err := getRevList(lo.Keys(commitHashToNode))
 	if err != nil {
-		return nil, fmt.Errorf("getting rev list: %w", err)
+		return fmt.Errorf("getting rev list: %w", err)
 	}
 
-	var commitMetadatas []*commitMetadata
 	for i := 0; i < len(revList); i++ {
 		start := i
 		for revList[i] != endBodyMarker {
@@ -45,11 +47,20 @@ func newCommitMetadatas(masterBranch string) ([]*commitMetadata, error) {
 		}
 		commitMetadata, err := newCommitMetadata(revList, start, i, masterBranch)
 		if err != nil {
-			return nil, fmt.Errorf("parsing commit metadata: %w", err)
+			return fmt.Errorf("parsing commit metadata: %w", err)
 		}
-		commitMetadatas = append(commitMetadatas, commitMetadata)
+		node := commitHashToNode[commitMetadata.CommitHash]
+		if node == nil {
+			return fmt.Errorf(
+				"failed to find node for commit hash %s: %w",
+				commitMetadata.CommitHash,
+				err,
+			)
+		}
+		commitMetadata.IsPartOfMaster = node.CommitMetadata.IsPartOfMaster
+		node.CommitMetadata = commitMetadata
 	}
-	return commitMetadatas, nil
+	return nil
 }
 
 // Format is:
@@ -63,11 +74,14 @@ func newCommitMetadatas(masterBranch string) ([]*commitMetadata, error) {
 //	<commit title>
 //	<multi-line commit body>
 //	__ENDBODY__
-func getRevList() ([]string, error) {
+func getRevList(commitHashes []string) ([]string, error) {
 	prettyFormat := "%h%n%an%n%cr%n%ct%n%D%n%s%n%b%n" + endBodyMarker
 	lines, err := shell.RunAndCollectLines(shell.Opt{}, fmt.Sprintf(
-		"git rev-list --children --all --pretty=format:%s",
+		// --no-walk=sorted limits the results to only the given commits.
+		// By default, `git rev-list`` includes all commits reachable from the given commits.
+		"git rev-list --pretty=format:%s %s --no-walk=sorted",
 		prettyFormat,
+		strings.Join(commitHashes, " "),
 	))
 	if err != nil {
 		return nil, fmt.Errorf("getting rev list: %w", err)
@@ -103,16 +117,13 @@ func newCommitMetadata(
 	return &commitMetadata{
 		CommitHash:        firstLineHashes[1], // first element is "commit" string literal
 		ShortCommitHash:   lines[start+1],
-		childrenHashes:    firstLineHashes[2:],
 		Author:            lines[start+2],
 		TimestampRelative: lines[start+3],
 		Timestamp:         timestamp,
 		BranchNames:       branchNames,
 		IsHead:            isHead,
 		Title:             lines[start+6],
-		// Don't include end_line (END_BODY marker).
-		body:     strings.Join(lines[start+7:end], "\n"),
-		IsMaster: lo.Contains(branchNames, masterBranch),
+		IsMaster:          lo.Contains(branchNames, masterBranch),
 	}, nil
 }
 

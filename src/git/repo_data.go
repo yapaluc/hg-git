@@ -1,7 +1,6 @@
 package git
 
 import (
-	"container/list"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,21 +10,22 @@ import (
 )
 
 type RepoData struct {
-	BranchRootNode        *TreeNode
-	CommitHashToNode      map[string]*TreeNode
-	ShortCommitHashToNode map[string]*TreeNode
-	BranchNameToNode      map[string]*TreeNode
-	MasterBranch          string
+	MasterBranch   string
+	BranchRootNode *TreeNode
+	// Commit hash to node. Each node is unique.
+	CommitHashToNode map[string]*TreeNode
+	// Branch name to node. Nodes may be duplicated.
+	BranchNameToNode map[string]*TreeNode
 }
 
+// TODO: add options to create RepoData without CommitMetadata/BranchDescription (faster)
 func NewRepoData() (*RepoData, error) {
 	repoData := &RepoData{
 		BranchRootNode: &TreeNode{
 			BranchChildren: make(map[string]*TreeNode),
 		},
-		CommitHashToNode:      make(map[string]*TreeNode),
-		ShortCommitHashToNode: make(map[string]*TreeNode),
-		BranchNameToNode:      make(map[string]*TreeNode),
+		CommitHashToNode: make(map[string]*TreeNode),
+		BranchNameToNode: make(map[string]*TreeNode),
 	}
 
 	// Find master branch.
@@ -35,16 +35,16 @@ func NewRepoData() (*RepoData, error) {
 	}
 	repoData.MasterBranch = masterBranch
 
-	// Build commit graph.
-	err = repoData.buildCommitGraph()
-	if err != nil {
-		return nil, fmt.Errorf("building commit graph: %w", err)
-	}
-
 	// Build branch graph.
 	err = repoData.buildBranchGraph()
 	if err != nil {
 		return nil, fmt.Errorf("building branch graph: %w", err)
+	}
+
+	// Add commit metadata.
+	err = repoData.addCommitMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("adding commit metadata: %w", err)
 	}
 
 	// Add branch description.
@@ -56,52 +56,17 @@ func NewRepoData() (*RepoData, error) {
 	return repoData, nil
 }
 
-func (rd *RepoData) buildCommitGraph() error {
-	commitMetadatas, err := newCommitMetadatas(rd.MasterBranch)
-	if err != nil {
-		return fmt.Errorf("creating commit metadatas: %w", err)
-	}
-	for _, commitMetadata := range commitMetadatas {
-		rd.addCommit(commitMetadata)
-	}
-	return nil
+func (rd *RepoData) addCommitMetadata() error {
+	return populateCommitMetadata(rd.CommitHashToNode, rd.MasterBranch)
 }
 
-func (rd *RepoData) addCommit(commitMetadata *commitMetadata) {
-	// Create or update the node. It may have been created earlier as a shell
-	// when processing the parent.
-	node, ok := rd.CommitHashToNode[commitMetadata.CommitHash]
-	if ok {
-		node.CommitMetadata = commitMetadata
-	} else {
-		node = newTreeNode(commitMetadata)
-		rd.CommitHashToNode[commitMetadata.CommitHash] = node
-	}
-	rd.ShortCommitHashToNode[commitMetadata.ShortCommitHash] = node
-
-	// Add branch names.
-	for _, branchName := range commitMetadata.BranchNames {
-		rd.BranchNameToNode[branchName] = node
-	}
-
-	// Create nodes for the children if they don't exist (real data will be added later).
-	for _, childHash := range commitMetadata.childrenHashes {
-		childNode, ok := rd.CommitHashToNode[childHash]
-		if !ok {
-			childNode = newTreeNode(nil /* commitMetadata */)
-			rd.CommitHashToNode[childHash] = childNode
-		}
-		childNode.parents[commitMetadata.CommitHash] = node
-		node.children[childHash] = childNode
-	}
-}
-
+// NOTE: This only works for up to 29 branches. This is a limitation of `git show-branch`.
 func (rd *RepoData) buildBranchGraph() error {
 	// Find all the branches and their descendants.
 	// Explanation of git show-branch: https://wincent.com/wiki/Understanding_the_output_of_%22git_show-branch%22
 	output, err := shell.Run(
 		shell.Opt{},
-		"git show-branch --sha1-name --topo-order --no-color",
+		"git show-branch --no-color",
 	)
 	output = strings.TrimSpace(output)
 	if err != nil {
@@ -114,12 +79,16 @@ func (rd *RepoData) buildBranchGraph() error {
 	if len(split) == 1 {
 		// If there is only one branch, git changes the output format
 		// and omits the prelude and column indicator.
-		r := regexp.MustCompile(`^\[(?P<shorthash>[a-z0-9]+)\] .*$`)
+		// Register a nodefor the branch and link it to the root node.
+		r := regexp.MustCompile(`^\[(?P<commitref>.+)\] .*$`)
 		match, err := util.RegexNamedMatches(r, split[0])
 		if err != nil {
 			return fmt.Errorf("extracting short commit hash: %w", err)
 		}
-		node := rd.ShortCommitHashToNode[match["shorthash"]]
+		node, err := rd.registerNode(match["commitref"])
+		if err != nil {
+			return fmt.Errorf("registering node for %q: %w", match["commitref"], err)
+		}
 		node.addBranchParent(rd.BranchRootNode)
 		return nil
 	}
@@ -127,116 +96,129 @@ func (rd *RepoData) buildBranchGraph() error {
 	prelude := strings.Split(strings.Trim(split[0], "\n"), "\n")
 	body := strings.Split(strings.Trim(split[1], "\n"), "\n")
 
-	var depthToBranchName []string
+	// Find the position of each branch name and register a node for each branch name.
+	branchNameToPosition := make(map[string]int)
 	r = regexp.MustCompile(`^\s*[*!]\s*\[(?P<branch>.*)\] .*$`)
-	for _, line := range prelude {
+	for i, line := range prelude {
 		match, err := util.RegexNamedMatches(r, line)
 		if err != nil {
 			return fmt.Errorf("extracting branch name: %w", err)
 		}
-		depthToBranchName = append(depthToBranchName, match["branch"])
+		branchNameToPosition[match["branch"]] = i
+
+		_, err = rd.registerNode(match["branch"])
+		if err != nil {
+			return fmt.Errorf("registering node for %q: %w", match["branch"], err)
+		}
 	}
 
-	shortCommitHashToChildren := make(map[string]map[string]struct{})
-	shortCommitHashToInDeg := make(map[string]int)
-	allShortCommitHashes := make(map[string]struct{})
-	branchNameToPrevCommitHash := make(map[string]string)
-	shortCommitHashesInMaster := make(map[string]struct{})
-	r = regexp.MustCompile(`^(?P<markers>[\s*+-]*) \[(?P<shorthash>[a-z0-9]+)\] .*$`)
+	// Process each branch to find its branch parent.
+	r = regexp.MustCompile(`^(?P<markers>[\s*+-]*) \[(?P<commitref>.+)\] .*$`)
+	for branchName, position := range branchNameToPosition {
+		// skip master branch - it is processed separately at the end
+		if branchName == rd.MasterBranch {
+			continue
+		}
+
+		node := rd.BranchNameToNode[branchName]
+		foundBranchItself := false
+	innerLoop:
+		// traverse sequentially to find the first parent branch of the current branch
+		for _, line := range body {
+			match, err := util.RegexNamedMatches(r, line)
+			if err != nil {
+				return fmt.Errorf("extracting markers and hash: %w", err)
+			}
+			commitRef := match["commitref"]
+			char := match["markers"][position]
+			// current line is not relevant to this branch
+			if char == ' ' {
+				continue
+			}
+			// skip the branch itself
+			if commitRef == branchName {
+				foundBranchItself = true
+				continue
+			}
+			if !foundBranchItself {
+				// do not pick anything until we passed the branch itself (this is for cases when a branch points at master)
+				continue
+			}
+			// pick master
+			if commitRef == rd.MasterBranch {
+				node.addBranchParent(rd.BranchNameToNode[rd.MasterBranch])
+				break innerLoop
+			}
+			// pick an ancestor of master
+			if strings.HasPrefix(commitRef, rd.MasterBranch+"~") ||
+				strings.HasPrefix(commitRef, rd.MasterBranch+"^") {
+				// special case: create a node for an ancestor of master
+				parentNode, err := rd.registerNode(commitRef)
+				if err != nil {
+					return fmt.Errorf("registering node for %q: %w", commitRef, err)
+				}
+				parentNode.CommitMetadata.IsPartOfMaster = true
+				node.addBranchParent(parentNode)
+				break innerLoop
+			}
+			// skip ancestors of other branches
+			if strings.Contains(commitRef, "~") || strings.HasSuffix(commitRef, "^") {
+				continue
+			}
+			// else, must be another branch
+			node.addBranchParent(rd.BranchNameToNode[commitRef])
+			break innerLoop
+		}
+	}
+
+	// finally, process master branch to connect relevant ancestors of master to the master node
+	node := rd.BranchNameToNode[rd.MasterBranch]
 	for _, line := range body {
 		match, err := util.RegexNamedMatches(r, line)
 		if err != nil {
 			return fmt.Errorf("extracting markers and hash: %w", err)
 		}
-		shortCommitHash := match["shorthash"]
-		allShortCommitHashes[shortCommitHash] = struct{}{}
-		for i, char := range match["markers"] {
-			if char == ' ' {
-				continue
-			}
-			branchName := depthToBranchName[i]
-			if prevCommitHash, ok := branchNameToPrevCommitHash[branchName]; ok {
-				if _, found := shortCommitHashToChildren[shortCommitHash][prevCommitHash]; !found {
-					if shortCommitHashToChildren[shortCommitHash] == nil {
-						shortCommitHashToChildren[shortCommitHash] = make(map[string]struct{})
-					}
-					shortCommitHashToChildren[shortCommitHash][prevCommitHash] = struct{}{}
-					shortCommitHashToInDeg[prevCommitHash]++
-				}
-			}
-			branchNameToPrevCommitHash[branchName] = shortCommitHash
-
-			if branchName == rd.MasterBranch {
-				shortCommitHashesInMaster[shortCommitHash] = struct{}{}
-			}
-		}
-	}
-
-	// Run a topological search to tighten it up to direct parent-child relationships.
-	q := list.New()
-	type qElem struct {
-		commitHash       string
-		parentBranchNode *TreeNode
-		parentNode       *TreeNode
-		root             bool
-	}
-	for commitHash := range allShortCommitHashes {
-		inDeg, ok := shortCommitHashToInDeg[commitHash]
-		if !ok || inDeg == 0 {
-			q.PushBack(qElem{
-				commitHash:       commitHash,
-				parentBranchNode: rd.BranchRootNode,
-				parentNode:       rd.BranchRootNode,
-				root:             true,
-			})
-		}
-	}
-
-	visitedShortCommitHashes := make(map[string]struct{})
-	for q.Len() != 0 {
-		elem := q.Front()
-		q.Remove(elem)
-		innerElem := elem.Value.(qElem)
-		node := rd.ShortCommitHashToNode[innerElem.commitHash]
-		commitHash := innerElem.commitHash
-		if _, ok := visitedShortCommitHashes[commitHash]; ok {
+		commitRef := match["commitref"]
+		char := match["markers"][branchNameToPosition[rd.MasterBranch]]
+		// current line is not relevant to this branch
+		if char == ' ' {
 			continue
 		}
-		visitedShortCommitHashes[commitHash] = struct{}{}
-
-		var parentBranchNodeToPropagate *TreeNode
-		if len(node.CommitMetadata.CleanedBranchNames()) > 0 || innerElem.root {
-			parent := innerElem.parentBranchNode
-			if innerElem.parentNode != innerElem.parentBranchNode {
-				_, parentNodeIsInMaster := shortCommitHashesInMaster[innerElem.parentNode.CommitMetadata.ShortCommitHash]
-				if parentNodeIsInMaster {
-					// Use parent node instead of parent branch node if it is part of master.
-					parent = innerElem.parentNode
-					// Register that node as part of the graph.
-					parent.addBranchParent(innerElem.parentBranchNode)
-					// Set the flag
-					parent.CommitMetadata.IsPartOfMaster = true
-				}
-			}
-			node.addBranchParent(parent)
-			parentBranchNodeToPropagate = node
-		} else {
-			// If this node doesn't represent a branch, propagate its parent node as the parent branch node.
-			parentBranchNodeToPropagate = innerElem.parentBranchNode
+		// skip the branch itself
+		if commitRef == rd.MasterBranch {
+			continue
 		}
-		for child := range shortCommitHashToChildren[commitHash] {
-			shortCommitHashToInDeg[child]--
-			if shortCommitHashToInDeg[child] == 0 {
-				q.PushBack(qElem{
-					commitHash:       child,
-					parentBranchNode: parentBranchNodeToPropagate,
-					parentNode:       node,
-				})
-			}
+		// if ancestor has been registered, add it as branch parent
+		if masterAncestor, ok := rd.BranchNameToNode[commitRef]; ok {
+			node.addBranchParent(masterAncestor)
+			node = masterAncestor
+		}
+	}
+
+	// nodes with no branch parent should point at the root node
+	for _, node := range rd.CommitHashToNode {
+		if node.BranchParent == nil {
+			node.addBranchParent(rd.BranchRootNode)
 		}
 	}
 
 	return nil
+}
+
+// commitRef is a branch name or a string parseable by `git rev-parse`.
+func (rd *RepoData) registerNode(commitRef string) (*TreeNode, error) {
+	commitHash, err := ResolveCommitRef(commitRef)
+	if err != nil {
+		return nil, fmt.Errorf("resolving commit ref %q: %w", commitRef, err)
+	}
+
+	if _, ok := rd.CommitHashToNode[commitHash]; !ok {
+		// Create node with minimal commitMetadata.
+		// Node may exist already in case of multiple branches pointing at the same commit.
+		rd.CommitHashToNode[commitHash] = newTreeNodeWithCommitHash(commitHash)
+	}
+	rd.BranchNameToNode[commitRef] = rd.CommitHashToNode[commitHash]
+	return rd.CommitHashToNode[commitHash], nil
 }
 
 func (rd *RepoData) addBranchDescription() error {

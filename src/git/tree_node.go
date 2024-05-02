@@ -2,9 +2,7 @@ package git
 
 type TreeNode struct {
 	CommitMetadata *commitMetadata
-	parents        map[string]*TreeNode
 	BranchParent   *TreeNode
-	children       map[string]*TreeNode
 	BranchChildren map[string]*TreeNode
 }
 
@@ -13,11 +11,9 @@ func (t *TreeNode) addBranchParent(parent *TreeNode) {
 	parent.BranchChildren[t.CommitMetadata.CommitHash] = t
 }
 
-func newTreeNode(commitMetadata *commitMetadata) *TreeNode {
+func newTreeNodeWithCommitHash(commitHash string) *TreeNode {
 	return &TreeNode{
-		CommitMetadata: commitMetadata,
-		parents:        make(map[string]*TreeNode),
-		children:       make(map[string]*TreeNode),
+		CommitMetadata: &commitMetadata{CommitHash: commitHash},
 		BranchChildren: make(map[string]*TreeNode),
 	}
 }

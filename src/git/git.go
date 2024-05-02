@@ -69,6 +69,17 @@ func ResolveRev(rev string) (string, error) {
 	return rev, nil
 }
 
+func ResolveCommitRef(commitRef string) (string, error) {
+	commitHash, err := shell.Run(
+		shell.Opt{},
+		fmt.Sprintf(`git rev-parse %s`, shellescape.Quote(commitRef)),
+	)
+	if err != nil {
+		return "", fmt.Errorf("getting commit hash: %w", err)
+	}
+	return strings.TrimSpace(commitHash), nil
+}
+
 // Resolves the given string to a branch name.
 // The string can be a branch name itself.
 // It can also be a commit hash pointing a commit with a branch name.

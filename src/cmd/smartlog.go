@@ -118,6 +118,15 @@ func sortedChildren(node *git.TreeNode) []*git.TreeNode {
 	children := make([]*git.TreeNode, len(node.BranchChildren))
 	copy(children, maps.Values(node.BranchChildren))
 	sort.Slice(children, func(i, j int) bool {
+		if children[i].CommitMetadata.IsMaster {
+			// Master should appear at depth 0.
+			return true
+		}
+		if children[j].CommitMetadata.IsMaster {
+			// Master should appear at depth 0.
+			return false
+		}
+
 		if children[i].CommitMetadata.IsAncestorOfMaster() {
 			// Master should appear at depth 0.
 			return true
