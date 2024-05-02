@@ -101,7 +101,7 @@ func (rd *RepoData) buildBranchGraph() error {
 	if len(split) == 1 {
 		// If there is only one branch, git changes the output format
 		// and omits the prelude and column indicator.
-		// Register a nodefor the branch and link it to the root node.
+		// Register a node for the branch and link it to the root node.
 		r := regexp.MustCompile(`^\[(?P<commitref>.+)\] .*$`)
 		match, err := util.RegexNamedMatches(r, split[0])
 		if err != nil {
