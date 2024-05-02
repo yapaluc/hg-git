@@ -19,7 +19,9 @@ func newTopCmd() *cobra.Command {
 }
 
 func runTop(_ *cobra.Command, args []string) error {
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(
+		git.RepoDataIncludeCommitMetadata,
+	)
 	if err != nil {
 		return err
 	}

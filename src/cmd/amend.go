@@ -49,7 +49,7 @@ func runAmend(message string, force bool, empty bool) error {
 		return err
 	}
 
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(git.RepoDataIncludeCommitMetadata)
 	if err != nil {
 		return err
 	}

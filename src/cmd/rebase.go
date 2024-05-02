@@ -27,7 +27,7 @@ func newRebaseCmd() *cobra.Command {
 }
 
 func runRebase(args []string, source, dest string) error {
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(git.RepoDataIncludeCommitMetadata)
 	if err != nil {
 		return err
 	}

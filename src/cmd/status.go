@@ -57,7 +57,7 @@ func showChangedFiles(args []string, change string) error {
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf(
 			"git diff --name-status %s %s",
-			shellescape.Quote(node.BranchParent.CommitMetadata.ShortCommitHash),
+			shellescape.Quote(node.BranchParent.CommitMetadata.CommitHash),
 			shellescape.Quote(branchName),
 		),
 	)

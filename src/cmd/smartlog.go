@@ -31,7 +31,10 @@ func newSmartlogCmd() *cobra.Command {
 
 func runSmartlog(args []string, showTime bool) error {
 	startTime := time.Now()
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(
+		git.RepoDataIncludeCommitMetadata,
+		git.RepoDataIncludeBranchDescription,
+	)
 	if err != nil {
 		return err
 	}

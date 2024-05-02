@@ -18,8 +18,26 @@ type RepoData struct {
 	BranchNameToNode map[string]*TreeNode
 }
 
-// TODO: add options to create RepoData without CommitMetadata/BranchDescription (faster)
-func NewRepoData() (*RepoData, error) {
+type repoDataParams struct {
+	IncludeCommitMetadata    bool
+	IncludeBranchDescription bool
+}
+
+type RepoDataOption func(params *repoDataParams)
+
+func RepoDataIncludeCommitMetadata(params *repoDataParams) {
+	params.IncludeCommitMetadata = true
+}
+
+func RepoDataIncludeBranchDescription(params *repoDataParams) {
+	params.IncludeBranchDescription = true
+}
+
+func NewRepoData(opts ...RepoDataOption) (*RepoData, error) {
+	params := repoDataParams{}
+	for _, opt := range opts {
+		opt(&params)
+	}
 	repoData := &RepoData{
 		BranchRootNode: &TreeNode{
 			BranchChildren: make(map[string]*TreeNode),
@@ -42,15 +60,19 @@ func NewRepoData() (*RepoData, error) {
 	}
 
 	// Add commit metadata.
-	err = repoData.addCommitMetadata()
-	if err != nil {
-		return nil, fmt.Errorf("adding commit metadata: %w", err)
+	if params.IncludeCommitMetadata {
+		err = repoData.addCommitMetadata()
+		if err != nil {
+			return nil, fmt.Errorf("adding commit metadata: %w", err)
+		}
 	}
 
 	// Add branch description.
-	err = repoData.addBranchDescription()
-	if err != nil {
-		return nil, fmt.Errorf("adding branch metadata: %w", err)
+	if params.IncludeBranchDescription {
+		err = repoData.addBranchDescription()
+		if err != nil {
+			return nil, fmt.Errorf("adding branch metadata: %w", err)
+		}
 	}
 
 	return repoData, nil

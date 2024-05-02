@@ -32,7 +32,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(git.RepoDataIncludeCommitMetadata)
 	if err != nil {
 		return fmt.Errorf("getting repo data: %w", err)
 	}

@@ -52,7 +52,10 @@ type submitCfg struct {
 }
 
 func runSubmit(cfg submitCfg) error {
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(
+		git.RepoDataIncludeCommitMetadata,
+		git.RepoDataIncludeBranchDescription,
+	)
 	if err != nil {
 		return err
 	}

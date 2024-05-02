@@ -31,7 +31,10 @@ func newSquashCmd() *cobra.Command {
 }
 
 func runSquash(args []string, force bool) error {
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(
+		git.RepoDataIncludeCommitMetadata,
+		git.RepoDataIncludeBranchDescription,
+	)
 	if err != nil {
 		return err
 	}
