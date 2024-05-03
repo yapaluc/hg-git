@@ -35,7 +35,9 @@ func runStatus(args []string, change string) error {
 }
 
 func showChangedFiles(_ []string, change string) error {
-	repoData, err := git.NewRepoData()
+	repoData, err := git.NewRepoData(
+		git.RepoDataIncludeCommitMetadata,
+	)
 	if err != nil {
 		return err
 	}
@@ -53,11 +55,18 @@ func showChangedFiles(_ []string, change string) error {
 		return fmt.Errorf("missing node for branch %q", branchName)
 	}
 
+	var parentBranchRef string
+	if node.CommitMetadata.IsMaster {
+		parentBranchRef = repoData.MasterBranch + "^"
+	} else {
+		parentBranchRef = node.BranchParent.CommitMetadata.CommitHash
+	}
+
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf(
 			"git diff --name-status %s %s",
-			shellescape.Quote(node.BranchParent.CommitMetadata.CommitHash),
+			parentBranchRef,
 			shellescape.Quote(branchName),
 		),
 	)
