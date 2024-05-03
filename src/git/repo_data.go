@@ -42,6 +42,9 @@ func NewRepoData(opts ...RepoDataOption) (*RepoData, error) {
 	}
 	repoData := &RepoData{
 		BranchRootNode: &TreeNode{
+			CommitMetadata: &commitMetadata{
+				CommitHash: "rootnode",
+			},
 			BranchChildren: make(map[string]*TreeNode),
 		},
 		CommitHashToNode: make(map[string]*TreeNode),
@@ -127,7 +130,10 @@ func (rd *RepoData) buildBranchGraph() error {
 		if err != nil {
 			return fmt.Errorf("registering node for %q: %w", match["commitref"], err)
 		}
-		node.addBranchParent(rd.BranchRootNode)
+		err = node.addBranchParent(rd.BranchRootNode)
+		if err != nil {
+			return fmt.Errorf("adding branch parent for %q: %w", match["commitref"], err)
+		}
 		return nil
 	}
 
@@ -184,7 +190,10 @@ func (rd *RepoData) buildBranchGraph() error {
 			}
 			// pick master
 			if commitRef == rd.MasterBranch {
-				node.addBranchParent(rd.BranchNameToNode[rd.MasterBranch])
+				err = node.addBranchParent(rd.BranchNameToNode[rd.MasterBranch])
+				if err != nil {
+					return fmt.Errorf("adding branch parent for %q: %w", branchName, err)
+				}
 				break innerLoop
 			}
 			// pick an ancestor of master
@@ -196,7 +205,10 @@ func (rd *RepoData) buildBranchGraph() error {
 					return fmt.Errorf("registering node for %q: %w", commitRef, err)
 				}
 				parentNode.CommitMetadata.IsPartOfMaster = true
-				node.addBranchParent(parentNode)
+				err = node.addBranchParent(parentNode)
+				if err != nil {
+					return fmt.Errorf("adding branch parent for %q: %w", branchName, err)
+				}
 				break innerLoop
 			}
 			// skip ancestors of other branches
@@ -204,7 +216,10 @@ func (rd *RepoData) buildBranchGraph() error {
 				continue
 			}
 			// else, must be another branch
-			node.addBranchParent(rd.BranchNameToNode[commitRef])
+			err = node.addBranchParent(rd.BranchNameToNode[commitRef])
+			if err != nil {
+				return fmt.Errorf("adding branch parent for %q: %w", branchName, err)
+			}
 			break innerLoop
 		}
 	}
@@ -228,7 +243,13 @@ func (rd *RepoData) buildBranchGraph() error {
 		}
 		// if ancestor has been registered, add it as branch parent
 		if masterAncestor, ok := rd.BranchNameToNode[commitRef]; ok {
-			node.addBranchParent(masterAncestor)
+			err = node.addBranchParent(masterAncestor)
+			if err != nil {
+				return fmt.Errorf(
+					"adding branch parent for master or its ancestor: %w",
+					err,
+				)
+			}
 			node = masterAncestor
 		}
 	}
@@ -236,7 +257,13 @@ func (rd *RepoData) buildBranchGraph() error {
 	// nodes with no branch parent should point at the root node
 	for _, node := range rd.CommitHashToNode {
 		if node.BranchParent == nil {
-			node.addBranchParent(rd.BranchRootNode)
+			err = node.addBranchParent(rd.BranchRootNode)
+			if err != nil {
+				return fmt.Errorf(
+					"adding branch parent as root for node with no branch parent: %w",
+					err,
+				)
+			}
 		}
 	}
 
