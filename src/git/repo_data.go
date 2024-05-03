@@ -141,7 +141,7 @@ func (rd *RepoData) buildBranchGraph() error {
 
 	// Find the position of each branch name and register a node for each branch name.
 	branchNameToPosition := make(map[string]int)
-	preludeRegex := regexp.MustCompile(`^\s*[*!]\s*\[(?P<branch>.*)\] .*$`)
+	preludeRegex := regexp.MustCompile(`^\s*[*!]\s*\[(?P<branch>.*?)\] .*$`)
 	for i, line := range prelude {
 		match, err := util.RegexNamedMatches(preludeRegex, line)
 		if err != nil {
