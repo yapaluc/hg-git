@@ -114,8 +114,7 @@ func (rd *RepoData) buildBranchGraph() error {
 		return fmt.Errorf("getting branch data: %w", err)
 	}
 
-	r := regexp.MustCompile(`(?m)^-+$`)
-	split := r.Split(output, 2)
+	split := regexp.MustCompile(`(?m)^-+$`).Split(output, 2)
 
 	if len(split) == 1 {
 		// If there is only one branch, git changes the output format
@@ -142,9 +141,9 @@ func (rd *RepoData) buildBranchGraph() error {
 
 	// Find the position of each branch name and register a node for each branch name.
 	branchNameToPosition := make(map[string]int)
-	r = regexp.MustCompile(`^\s*[*!]\s*\[(?P<branch>.*)\] .*$`)
+	preludeRegex := regexp.MustCompile(`^\s*[*!]\s*\[(?P<branch>.*)\] .*$`)
 	for i, line := range prelude {
-		match, err := util.RegexNamedMatches(r, line)
+		match, err := util.RegexNamedMatches(preludeRegex, line)
 		if err != nil {
 			return fmt.Errorf("extracting branch name: %w", err)
 		}
@@ -157,7 +156,7 @@ func (rd *RepoData) buildBranchGraph() error {
 	}
 
 	// Process each branch to find its branch parent.
-	r = regexp.MustCompile(`^(?P<markers>[\s*+-]*) \[(?P<commitref>.+)\] .*$`)
+	bodyLineRegex := regexp.MustCompile(`^(?P<markers>[\s*+-]*) \[(?P<commitref>.+?)\] .*$`)
 	for branchName, position := range branchNameToPosition {
 		// skip master branch - it is processed separately at the end
 		if branchName == rd.MasterBranch {
@@ -169,7 +168,7 @@ func (rd *RepoData) buildBranchGraph() error {
 	innerLoop:
 		// traverse sequentially to find the first parent branch of the current branch
 		for _, line := range body {
-			match, err := util.RegexNamedMatches(r, line)
+			match, err := util.RegexNamedMatches(bodyLineRegex, line)
 			if err != nil {
 				return fmt.Errorf("extracting markers and hash: %w", err)
 			}
@@ -227,7 +226,7 @@ func (rd *RepoData) buildBranchGraph() error {
 	// finally, process master branch to connect relevant ancestors of master to the master node
 	node := rd.BranchNameToNode[rd.MasterBranch]
 	for _, line := range body {
-		match, err := util.RegexNamedMatches(r, line)
+		match, err := util.RegexNamedMatches(bodyLineRegex, line)
 		if err != nil {
 			return fmt.Errorf("extracting markers and hash: %w", err)
 		}
@@ -243,7 +242,7 @@ func (rd *RepoData) buildBranchGraph() error {
 		}
 		// if ancestor has been registered, add it as branch parent
 		if masterAncestor, ok := rd.BranchNameToNode[commitRef]; ok {
-			err = node.addBranchParent(masterAncestor)
+			err := node.addBranchParent(masterAncestor)
 			if err != nil {
 				return fmt.Errorf(
 					"adding branch parent for master or its ancestor: %w",
