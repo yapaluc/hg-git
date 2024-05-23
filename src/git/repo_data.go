@@ -211,7 +211,7 @@ func (rd *RepoData) buildBranchGraph() error {
 				break innerLoop
 			}
 			// skip ancestors of other branches
-			if strings.Contains(commitRef, "~") || strings.HasSuffix(commitRef, "^") {
+			if strings.Contains(commitRef, "~") || strings.Contains(commitRef, "^") {
 				continue
 			}
 			// else, must be another branch
