@@ -120,7 +120,7 @@ func (rd *RepoData) buildBranchGraph() error {
 		// If there is only one branch, git changes the output format
 		// and omits the prelude and column indicator.
 		// Register a node for the branch and link it to the root node.
-		r := regexp.MustCompile(`^\[(?P<commitref>.+)\] .*$`)
+		r := regexp.MustCompile(`^\[(?P<commitref>.+?)\] .*$`)
 		match, err := util.RegexNamedMatches(r, split[0])
 		if err != nil {
 			return fmt.Errorf("extracting short commit hash: %w", err)
