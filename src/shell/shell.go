@@ -100,7 +100,11 @@ func OpenEditor(
 
 	editor := os.Getenv("GIT_EDITOR")
 	if editor == "" {
-		editor = os.Getenv("EDITOR")
+		var err error
+		editor, err = getGitConfigCoreEditor()
+		if err != nil {
+			editor = os.Getenv("EDITOR")
+		}
 	}
 
 	cmdStr := fmt.Sprintf("%s %s", editor, tmpFile.Name())
@@ -134,4 +138,12 @@ func OpenEditor(
 		}
 	}
 	return strings.Join(result, "\n"), nil
+}
+
+func getGitConfigCoreEditor() (string, error) {
+	coreEditor, err := Run(Opt{}, "git config core.editor")
+	if err != nil {
+		return "", fmt.Errorf("getting git config core.editor: %w", err)
+	}
+	return coreEditor, nil
 }
