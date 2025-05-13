@@ -43,7 +43,7 @@ brews:
   -
     name: hg-git
     homepage: https://github.com/yapaluc/hg-git
-    tap:
+    repository:
       owner: yapaluc
       name: homebrew-hg-git
     commit_author:
