@@ -30,7 +30,7 @@ func runPrsync(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("getting PR data for branch %q: %w", currBranch, err)
 	}
 	if prData == nil {
-		return fmt.Errorf("no PR found for branch %q: %w", currBranch, err)
+		return fmt.Errorf("no PR found for branch %q", currBranch)
 	}
 
 	prBody, err := github.NewPrBody(prData.Body)

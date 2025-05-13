@@ -543,7 +543,7 @@ func getPRDataForNode(node *git.TreeNode) (*github.PullRequest, error) {
 		if isPrIgnored(branchName) {
 			return github.GetPRDataForIgnoredBranch(branchName), nil
 		}
-		return nil, fmt.Errorf("no PR found for branch %q: %w", branchName, err)
+		return nil, fmt.Errorf("no PR found for branch %q", branchName)
 	}
 
 	return prData, nil
