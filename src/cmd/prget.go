@@ -20,11 +20,15 @@ func newPrgetCmd() *cobra.Command {
 func runPrget(_ *cobra.Command, args []string) error {
 	// TODO - restack after running this
 	prURLOrNum := args[0]
+	return checkoutPR(prURLOrNum)
+}
+
+func checkoutPR(prURLOrNumOrBranch string) error {
 	_, err := shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
 		fmt.Sprintf(
 			"gh pr checkout %s",
-			shellescape.Quote(prURLOrNum),
+			shellescape.Quote(prURLOrNumOrBranch),
 		),
 	)
 	if err != nil {

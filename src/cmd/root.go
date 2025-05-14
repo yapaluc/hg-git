@@ -25,6 +25,7 @@ func Execute() {
 		newPrevCmd(),
 		newPrgetCmd(),
 		newPrignoreCmd(),
+		newPrRefreshCmd(),
 		newPrsyncCmd(),
 		newPullCmd(),
 		newRebaseCmd(),

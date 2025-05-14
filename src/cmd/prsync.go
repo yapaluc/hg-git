@@ -24,18 +24,21 @@ func runPrsync(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("getting current branch: %w", err)
 	}
+	return syncPR(currBranch)
+}
 
-	prData, err := github.FetchPRForBranch(currBranch)
+func syncPR(branchName string) error {
+	prData, err := github.FetchPRForBranch(branchName)
 	if err != nil {
-		return fmt.Errorf("getting PR data for branch %q: %w", currBranch, err)
+		return fmt.Errorf("getting PR data for branch %q: %w", branchName, err)
 	}
 	if prData == nil {
-		return fmt.Errorf("no PR found for branch %q", currBranch)
+		return fmt.Errorf("no PR found for branch %q", branchName)
 	}
 
 	prBody, err := github.NewPrBody(prData.Body)
 	if err != nil {
-		return fmt.Errorf("parsing PR body for branch %q: %w", currBranch, err)
+		return fmt.Errorf("parsing PR body for branch %q: %w", branchName, err)
 	}
 
 	branchDesc := git.BranchDescription{
@@ -43,9 +46,9 @@ func runPrsync(_ *cobra.Command, args []string) error {
 		Body:  prBody.Description,
 		PrURL: prData.URL,
 	}
-	err = writeBranchDescription(currBranch, branchDesc.String())
+	err = writeBranchDescription(branchName, branchDesc.String())
 	if err != nil {
-		return fmt.Errorf("updating the description for branch %q: %w", currBranch, err)
+		return fmt.Errorf("updating the description for branch %q: %w", branchName, err)
 	}
 
 	color.Green("Synced branch description from PR")
