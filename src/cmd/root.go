@@ -22,6 +22,7 @@ func Execute() {
 		newDiffCmd(),
 		newEditCmd(),
 		newNextCmd(),
+		newPatchCmd(),
 		newPrevCmd(),
 		newPrgetCmd(),
 		newPrignoreCmd(),
