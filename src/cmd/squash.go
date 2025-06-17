@@ -211,7 +211,11 @@ func getSquashDetails(
 	if !ok || force {
 		// If no origin/BRANCHNAME local branch, branch hasn't been pushed yet, so all commits on the branch are safe to squash.
 		commitToStartPatchAt := parentBranch.CommitMetadata.ShortCommitHash
-		commitMessage := node.CommitMetadata.BranchDescription.Title
+		commitMessage := "unknown"
+		if node.CommitMetadata.BranchDescription != nil {
+			// Possible for there to be no branch description if none was yet.
+			commitMessage = node.CommitMetadata.BranchDescription.Title
+		}
 		return squashDetails{
 			commitToCalculatePatchFrom: commitToStartPatchAt,
 			branchNameToPatchAt:        parentBranchName,
