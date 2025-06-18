@@ -219,7 +219,7 @@ func (p *PrBody) toPRStackTable() string {
 		)
 	}
 
-	// Pad columns with non-breaking spaces to make the column widths even column.
+	// Pad columns with non-breaking spaces to make the column widths even.
 	targetColWidth := lo.Max([]int{
 		len("⬅️ Previous"), // Previous is the longer column name of the two
 		len(previousCell),
