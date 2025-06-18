@@ -8,7 +8,7 @@ import (
 func RegexNamedMatches(r *regexp.Regexp, s string) (map[string]string, error) {
 	match := r.FindStringSubmatch(s)
 	if match == nil {
-		return nil, fmt.Errorf("expected regex match of %q on string: %q", r.String(), s)
+		return nil, nil
 	}
 	m := make(map[string]string)
 	for _, name := range r.SubexpNames() {

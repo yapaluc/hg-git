@@ -326,12 +326,12 @@ func createPR(
 		)
 	}
 
-	var parentPRURL string
+	var parentPRNum int
 	if parentPRData != nil {
-		parentPRURL = parentPRData.URL
+		parentPRNum = parentPRData.Number
 	}
 	prBody := github.PrBody{
-		PreviousPR:  parentPRURL,
+		PreviousPR:  parentPRNum,
 		Description: commitMetadata.BranchDescription.Body,
 	}
 	args := []string{
@@ -340,7 +340,7 @@ func createPR(
 		"--title",
 		shellescape.Quote(commitMetadata.BranchDescription.Title),
 		"--body",
-		shellescape.Quote(prBody.String()),
+		shellescape.Quote(prBody.ToMarkdown()),
 	}
 	if parentPRData != nil {
 		args = append(args, "--base")
@@ -443,12 +443,12 @@ func getUpdatedPRBody(
 	prBody.Description = stackEntry.node.CommitMetadata.BranchDescription.Body
 
 	// If previous PR was merged, keep it. Else, replace it with the new previous URL.
-	var newPreviousPR string
+	var newPreviousPR int
 	if parentPRData != nil {
-		newPreviousPR = parentPRData.URL
+		newPreviousPR = parentPRData.Number
 	}
-	if prBody.PreviousPR != "" {
-		previousPRData, err := github.FetchPRByURLOrNum(prBody.PreviousPR)
+	if prBody.PreviousPR != 0 {
+		previousPRData, err := github.FetchPRByNum(prBody.PreviousPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching previous PR at URL %q: %w", prBody.PreviousPR, err)
 		}
@@ -459,9 +459,9 @@ func getUpdatedPRBody(
 	prBody.PreviousPR = newPreviousPR
 
 	// Remove "Next" PRs with a base branch not pointing to this branch.
-	var newNextPRs []string
+	var newNextPRs []int
 	for _, nextPR := range prBody.NextPRs {
-		nextPRData, err := github.FetchPRByURLOrNum(nextPR)
+		nextPRData, err := github.FetchPRByNum(nextPR)
 		if err != nil {
 			return "", fmt.Errorf("fetching next PR at URL %q: %w", nextPR, err)
 		}
@@ -471,7 +471,7 @@ func getUpdatedPRBody(
 	}
 	prBody.NextPRs = newNextPRs
 
-	return prBody.String(), nil
+	return prBody.ToMarkdown(), nil
 }
 
 func updateNextInParentPR(
@@ -491,10 +491,11 @@ func updateNextInParentPR(
 	if err != nil {
 		return fmt.Errorf("getting PR body of PR URL %q: %w", parentPRData.URL, err)
 	}
-	if lo.Contains(parentPrBody.NextPRs, prURL) {
+	prNum := github.PRNumFromPRURL(prURL)
+	if lo.Contains(parentPrBody.NextPRs, prNum) {
 		return nil
 	}
-	parentPrBody.NextPRs = append(parentPrBody.NextPRs, prURL)
+	parentPrBody.NextPRs = append(parentPrBody.NextPRs, prNum)
 
 	sp.Suffix = " updating parent PR with forward reference"
 	_, err = shell.Run(
@@ -502,7 +503,7 @@ func updateNextInParentPR(
 		fmt.Sprintf(
 			"gh pr edit %s --body %s",
 			shellescape.Quote(parentPRData.URL),
-			shellescape.Quote(parentPrBody.String()),
+			shellescape.Quote(parentPrBody.ToMarkdown()),
 		),
 	)
 	if err != nil {

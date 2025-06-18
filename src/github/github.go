@@ -12,11 +12,14 @@ import (
 	"github.com/alessio/shellescape"
 )
 
+const pullRequestRequestFields = "url,number,state,title,baseRefName,headRefName,body"
+
 type PullRequest struct {
 	BaseRefName string
 	HeadRefName string
 	State       string
 	URL         string
+	Number      int
 	Title       string
 	Body        string
 }
@@ -25,8 +28,9 @@ func FetchPRForBranch(branchName string) (*PullRequest, error) {
 	out, err := shell.Run(
 		shell.Opt{},
 		fmt.Sprintf(
-			"gh pr list -s open -H %s --json url,state,title,baseRefName,headRefName,body",
+			"gh pr list -s open -H %s --json %s",
 			shellescape.Quote(branchName),
+			pullRequestRequestFields,
 		),
 	)
 	if err != nil {
@@ -47,12 +51,17 @@ func FetchPRForBranch(branchName string) (*PullRequest, error) {
 	return pr, nil
 }
 
+func FetchPRByNum(prNum int) (*PullRequest, error) {
+	return FetchPRByURLOrNum(fmt.Sprintf("%d", prNum))
+}
+
 func FetchPRByURLOrNum(prURLOrNum string) (*PullRequest, error) {
 	out, err := shell.Run(
 		shell.Opt{},
 		fmt.Sprintf(
-			"gh pr view %s --json url,state,title,baseRefName,body",
+			"gh pr view %s --json %s",
 			shellescape.Quote(prURLOrNum),
+			pullRequestRequestFields,
 		),
 	)
 	if err != nil {
@@ -78,9 +87,21 @@ func PRStrFromPRURL(prURL string) string {
 	return fmt.Sprintf("#%d", PRNumFromPRURL(prURL))
 }
 
+func PRStrFromPRNum(prNum int) string {
+	return fmt.Sprintf("#%d", prNum)
+}
+
 func PRNumFromPRURL(prURL string) int {
 	i, _ := strconv.Atoi(prURL[strings.LastIndex(prURL, "/")+1:])
 	return i
+}
+
+func PRNumFromNumOrURL(numOrURL string) int {
+	if strings.HasPrefix(numOrURL, "#") {
+		i, _ := strconv.Atoi(numOrURL[1:])
+		return i
+	}
+	return PRNumFromPRURL(numOrURL)
 }
 
 func BranchURLFromBranchName(branchName string, parentBranchName string) (string, error) {

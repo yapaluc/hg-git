@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/yapaluc/hg-git/src/util"
 )
 
@@ -16,11 +17,21 @@ const prevAndNextTableTemplate = `
 | ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s | Current%s | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s |
 | ------------- | ------------- | ------------- |
 `
+const prevAndNextTableTemplate2 = `> [!NOTE]
+> This PR is part of a stack:
+> | ⬅️ Previous | 🔵 Current | ➡️ Next |
+> | ----------- | --------- | ------ |
+> | %s | *This PR* | %s |
+
+`
+
 const defaultAnnotation = "&nbsp;"
 
+const nonBreakingSpace = "\u00A0"
+
 type PrBody struct {
-	PreviousPR  string
-	NextPRs     []string
+	PreviousPR  int
+	NextPRs     []int
 	Description string
 }
 
@@ -29,7 +40,19 @@ func NewPrBody(rawPrBody string) (*PrBody, error) {
 	if err == nil {
 		return prBody1, nil
 	}
-	return newPrBody2(rawPrBody)
+
+	prBody2, err := newPrBody2(rawPrBody)
+	if err == nil {
+		return prBody2, nil
+	}
+
+	prBody3, err := newPrBody3(rawPrBody)
+	if err == nil {
+		return prBody3, nil
+	}
+
+	// Must be a stackless PR. Assume the entire body is the description.
+	return &PrBody{Description: rawPrBody}, nil
 }
 
 // Old format for backwards compatibility
@@ -38,23 +61,20 @@ func newPrBody1(rawPrBody string) (*PrBody, error) {
 	lines := strings.Split(rawPrBody, "\n")
 	for i, line := range lines {
 		if strings.HasSuffix(line, previousComment) {
-			prBody.PreviousPR = strings.TrimPrefix(
+			rawPreviousPR := strings.TrimPrefix(
 				strings.TrimSuffix(line, previousComment),
 				"* **Previous:** ",
 			)
+			prBody.PreviousPR = PRNumFromNumOrURL(rawPreviousPR)
 		} else if strings.HasSuffix(line, nextComment) {
-			prBody.NextPRs = []string{
-				strings.TrimPrefix(
-					strings.TrimSuffix(line, nextComment),
-					"* **Next:** ",
-				),
+			rawNextPR := strings.TrimPrefix(
+				strings.TrimSuffix(line, nextComment),
+				"* **Next:** ",
+			)
+			prBody.NextPRs = []int{
+				PRNumFromNumOrURL(rawNextPR),
 			}
 		} else if line == endPreambleComment {
-			// If there is content before the end preamble comment but PreviousPR/NextPR were not populated,
-			// this is not the right format.
-			if i > 0 && prBody.PreviousPR == "" && len(prBody.NextPRs) == 0 {
-				return nil, fmt.Errorf("parsing PR body: %q", rawPrBody)
-			}
 			// There should be a blank line after the end preamble comment, but fail gracefully if not.
 			if i+2 < len(lines) {
 				prBody.Description = strings.Join(lines[i+2:], "\n")
@@ -62,10 +82,16 @@ func newPrBody1(rawPrBody string) (*PrBody, error) {
 			}
 		}
 	}
+
+	// If PreviousPR/NextPR were not populated, return an error to allow top-level handling of stackless PRs.
+	if prBody.PreviousPR == 0 && len(prBody.NextPRs) == 0 {
+		return nil, fmt.Errorf("parsing PR body: %q", rawPrBody)
+	}
+
 	return &prBody, nil
 }
 
-// New format
+// Old format for backwards compatibility
 func newPrBody2(rawPrBody string) (*PrBody, error) {
 	lines := strings.Split(rawPrBody, "\n")
 	var endPreambleIndex *int
@@ -107,46 +133,107 @@ func newPrBody2(rawPrBody string) (*PrBody, error) {
 	}
 	prevParts := strings.Split(match["prev"], "<br>")
 	if prevParts[0] != defaultAnnotation {
-		prBody.PreviousPR = prevParts[0]
+		prBody.PreviousPR = PRNumFromNumOrURL(prevParts[0])
 	}
 	if match["next"] != defaultAnnotation {
-		prBody.NextPRs = strings.Split(match["next"], "<br>")
+		prBody.NextPRs = lo.Map(
+			strings.Split(match["next"], "<br>"),
+			func(n string, _ int) int {
+				return PRNumFromNumOrURL(n)
+			},
+		)
 	}
+
+	// If PreviousPR/NextPR were not populated, return an error to allow top-level handling of stackless PRs.
+	if prBody.PreviousPR == 0 && len(prBody.NextPRs) == 0 {
+		return nil, fmt.Errorf("parsing PR body: %q", rawPrBody)
+	}
+
 	return &prBody, nil
 }
 
-func (p *PrBody) String() string {
-	var prevAndNextTable string
-	if p.PreviousPR != "" || len(p.NextPRs) > 0 {
-		var previousPRAnnotation []string
-		if p.PreviousPR != "" {
-			previousPRAnnotation = append(previousPRAnnotation, p.PreviousPR)
-		}
+// New format
+func newPrBody3(rawPrBody string) (*PrBody, error) {
+	var prBody PrBody
+	rowPattern := regexp.MustCompile(
+		`^> \|\s*(?P<prev>.*?)\s*\|\s*\*This PR\*\s*\|\s*(?P<next>.*?)\s*\|$`,
+	)
+	var rowIndex int
 
-		var nextPRAnnotation []string
-		if len(p.NextPRs) > 0 {
-			sort.Slice(p.NextPRs, func(i, j int) bool {
-				return PRNumFromPRURL(p.NextPRs[i]) < PRNumFromPRURL(p.NextPRs[j])
-			})
-			nextPRAnnotation = append(nextPRAnnotation, p.NextPRs...)
-		} else {
-			nextPRAnnotation = append(nextPRAnnotation, defaultAnnotation)
-		}
+	lines := strings.Split(rawPrBody, "\n")
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
 
-		// Make sure previous annotation and current has the same number of lines as next annotation.
-		for i := 0; i < len(nextPRAnnotation)-len(previousPRAnnotation); i++ {
-			previousPRAnnotation = append(previousPRAnnotation, defaultAnnotation)
+		// Parse the table row.
+		match, err := util.RegexNamedMatches(rowPattern, line)
+		if err != nil {
+			return nil, fmt.Errorf("parsing PR body to find PR stack table: %w", err)
 		}
-		var currentAnnotation []string
-		for i := 0; i < len(nextPRAnnotation); i++ {
-			currentAnnotation = append(currentAnnotation, "<br>")
+		if match != nil {
+			prBody.PreviousPR = PRNumFromNumOrURL(strings.TrimSpace(match["prev"]))
+			nextRaw := strings.TrimSpace(match["next"])
+			if nextRaw != "" {
+				prBody.NextPRs = lo.Map(
+					strings.Split(nextRaw, ", "),
+					func(n string, _ int) int {
+						return PRNumFromNumOrURL(n)
+					},
+				)
+			}
+			rowIndex = i
+			break
 		}
-		prevAndNextTable = fmt.Sprintf(
-			prevAndNextTableTemplate,
-			strings.Join(previousPRAnnotation, "<br>"),
-			strings.Join(currentAnnotation, ""),
-			strings.Join(nextPRAnnotation, "<br>"),
+	}
+
+	// If stack block was not found, return an error to allow top-level handling of stackless PRs.
+	if prBody.PreviousPR == 0 && len(prBody.NextPRs) == 0 {
+		return nil, fmt.Errorf("parsing PR body: %q", rawPrBody)
+	}
+
+	// If stack block was found, everything after is the description.
+	prBody.Description = strings.TrimSpace(strings.Join(lines[rowIndex+1:], "\n"))
+
+	return &prBody, nil
+}
+
+func (p *PrBody) toPRStackTable() string {
+	if p.PreviousPR == 0 && len(p.NextPRs) == 0 {
+		return ""
+	}
+
+	// Sort NextPRs to make the output deterministic.
+	sort.Ints(p.NextPRs)
+
+	// Render cells.
+	var previousCell string
+	if p.PreviousPR != 0 {
+		previousCell = PRStrFromPRNum(p.PreviousPR)
+	}
+	var nextCell string
+	if len(p.NextPRs) != 0 {
+		nextCell = strings.Join(
+			lo.Map(p.NextPRs, func(n int, _ int) string {
+				return PRStrFromPRNum(n)
+			}),
+			", ",
 		)
 	}
-	return fmt.Sprintf("%s%s\n\n%s", prevAndNextTable, endPreambleComment, p.Description)
+
+	// Pad columns with non-breaking spaces to make the column widths even column.
+	targetColWidth := lo.Max([]int{
+		len("⬅️ Previous"), // Previous is the longer column name of the two
+		len(previousCell),
+		len(nextCell),
+	})
+	previousCellPadding := strings.Repeat(nonBreakingSpace, (targetColWidth-len(previousCell))/2)
+	previousCell = previousCellPadding + previousCell + previousCellPadding
+	nextCellPadding := strings.Repeat(nonBreakingSpace, (targetColWidth-len(nextCell))/2)
+	nextCell = nextCellPadding + nextCell + nextCellPadding
+
+	// Render table.
+	return fmt.Sprintf(prevAndNextTableTemplate2, previousCell, nextCell)
+}
+
+func (p *PrBody) ToMarkdown() string {
+	return fmt.Sprintf("%s%s", p.toPRStackTable(), p.Description)
 }
