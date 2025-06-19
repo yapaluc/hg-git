@@ -173,7 +173,9 @@ func runSquashOnBranch(repoData *git.RepoData, branchName string, force bool) er
 	// Apply the patch.
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git apply %s", tmpFile.Name()),
+		// `git apply` runs relative to the working directory.
+		// Run it relative to the root of the repo to ensure the patch created above is accepted.
+		fmt.Sprintf("cd $(git rev-parse --show-toplevel) && git apply %s", tmpFile.Name()),
 	)
 	if err != nil {
 		return fmt.Errorf("applying patch: %w", err)

@@ -70,7 +70,13 @@ func runPatchOnRev(rev string, force bool) error {
 	}
 	_, err = shell.Run(
 		shell.Opt{StreamOutputToStdout: true},
-		fmt.Sprintf("git apply %s %s", tmpFile.Name(), rejectFlag),
+		// `git apply` runs relative to the working directory.
+		// Run it relative to the root of the repo to ensure the patch created above is accepted.
+		fmt.Sprintf(
+			"cd $(git rev-parse --show-toplevel) && git apply %s %s",
+			tmpFile.Name(),
+			rejectFlag,
+		),
 	)
 	if err != nil {
 		return fmt.Errorf("applying patch: %w", err)
