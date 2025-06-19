@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/samber/lo"
 	"github.com/yapaluc/hg-git/src/util"
 )
@@ -17,11 +18,9 @@ const prevAndNextTableTemplate = `
 | ◀<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Previous&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s | Current%s | ▶<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Next&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>%s |
 | ------------- | ------------- | ------------- |
 `
-const prevAndNextTableTemplate2 = `> [!NOTE]
+const stackIndicatorTemplate = `> [!NOTE]
 > This PR is part of a stack:
-> | ← Previous | ⬤ Current | → Next |
-> | ----------- | --------- | ------ |
-> | %s | *This PR* | %s |
+%s
 
 `
 
@@ -219,21 +218,100 @@ func (p *PrBody) toPRStackTable() string {
 		)
 	}
 
-	// Pad columns with non-breaking spaces to make the column widths even.
-	targetColWidth := lo.Max([]int{
-		len("← Previous"), // Previous is the longer column name of the two
-		len(previousCell),
-		len(nextCell),
-	})
-	previousCellPadding := strings.Repeat(nonBreakingSpace, (targetColWidth-len(previousCell))/2)
-	previousCell = previousCellPadding + previousCell + previousCellPadding
-	nextCellPadding := strings.Repeat(nonBreakingSpace, (targetColWidth-len(nextCell))/2)
-	nextCell = nextCellPadding + nextCell + nextCellPadding
-
 	// Render table.
-	return fmt.Sprintf(prevAndNextTableTemplate2, previousCell, nextCell)
+	table := generateSingleRowMarkdownTable(
+		[]string{"← Previous", "⬤ Current", "→ Next"},
+		[]string{previousCell, "*This PR*", nextCell},
+		"> ",
+	)
+
+	// Render.
+	return fmt.Sprintf(stackIndicatorTemplate, table)
 }
 
 func (p *PrBody) ToMarkdown() string {
 	return fmt.Sprintf("%s%s", p.toPRStackTable(), p.Description)
+}
+
+// generateSingleRowMarkdownTable builds a table that renders such that the outer columns are equal-width,
+// determined by max width of those columns. The middle column is rendered naturally.
+// It also attempts best affort to align the raw Markdown to be human readable.
+func generateSingleRowMarkdownTable(headers []string, row []string, prefix string) string {
+	if len(headers) != 3 || len(row) != 3 {
+		return fmt.Sprintf("expected exactly 3 columns but got %d", len(headers))
+	}
+
+	// Determine fixed width for outer columns
+	maxOuter := lo.Max([]int{
+		runewidth.StringWidth(headers[0]),
+		runewidth.StringWidth(row[0]),
+		runewidth.StringWidth(headers[2]),
+		runewidth.StringWidth(row[2]),
+	})
+
+	// Actual width of middle column (2nd col)
+	midWidth := lo.Max([]int{runewidth.StringWidth(headers[1]), runewidth.StringWidth(row[1])})
+
+	padWithNonVisibleSpacesForRawReadability := func(content string, width int) string {
+		visibleLen := len(content)
+		if visibleLen >= width {
+			return content
+		}
+		return content + strings.Repeat(" ", width-visibleLen)
+	}
+	centerPadWithNBSPForRenderedReadability := func(content string, width int) string {
+		visibleLen := len(content)
+		if visibleLen >= width {
+			return content
+		}
+		if visibleLen == 0 {
+			// No need to use NBSPs when the cell is empty and its width is determined by another cell in the column.
+			return padWithNonVisibleSpacesForRawReadability(content, width)
+		}
+		// Scale up the width to account for GitHub's non-monospace rendering.
+		width = int(
+			float64(width) * 1.5,
+		)
+		padding := width - visibleLen
+		left := padding / 2
+		right := padding - left
+		return strings.Repeat(
+			nonBreakingSpace,
+			left,
+		) + content + strings.Repeat(
+			nonBreakingSpace,
+			right,
+		)
+	}
+
+	var markdownLines []string
+
+	// Header row
+	markdownLines = append(markdownLines, fmt.Sprintf(
+		"%s| %s | %s | %s |",
+		prefix,
+		padWithNonVisibleSpacesForRawReadability(headers[0], maxOuter),
+		padWithNonVisibleSpacesForRawReadability(headers[1], midWidth),
+		padWithNonVisibleSpacesForRawReadability(headers[2], maxOuter),
+	))
+
+	// Divider row
+	markdownLines = append(markdownLines, fmt.Sprintf(
+		"%s| %s | %s | %s |",
+		prefix,
+		strings.Repeat("-", maxOuter),
+		strings.Repeat("-", midWidth),
+		strings.Repeat("-", maxOuter),
+	))
+
+	// Data row
+	markdownLines = append(markdownLines, fmt.Sprintf(
+		"%s| %s | %s | %s |",
+		prefix,
+		centerPadWithNBSPForRenderedReadability(row[0], maxOuter),
+		padWithNonVisibleSpacesForRawReadability(row[1], midWidth),
+		centerPadWithNBSPForRenderedReadability(row[2], maxOuter),
+	))
+
+	return strings.Join(markdownLines, "\n")
 }
