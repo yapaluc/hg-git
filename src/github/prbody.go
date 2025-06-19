@@ -264,10 +264,6 @@ func generateSingleRowMarkdownTable(headers []string, row []string, prefix strin
 		if visibleLen >= width {
 			return content
 		}
-		if visibleLen == 0 {
-			// No need to use NBSPs when the cell is empty and its width is determined by another cell in the column.
-			return padWithNonVisibleSpacesForRawReadability(content, width)
-		}
 		// Scale up the width to account for GitHub's non-monospace rendering.
 		width = int(
 			float64(width) * 1.5,
