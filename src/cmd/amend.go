@@ -3,7 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
+
+	"golang.org/x/term"
 
 	"github.com/yapaluc/hg-git/src/git"
 	"github.com/yapaluc/hg-git/src/shell"
@@ -177,7 +178,7 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 		for _, line := range lines {
 			color.Red("  " + line)
 		}
-		color.Red("Resolve the merge conflicts and press enter to continue.")
+		color.Red("Resolve the merge conflicts and press any character to continue.")
 		color.Red("You don't need to add files or continue the merge/rebase.")
 		err = waitForUserInput()
 		if err != nil {
@@ -196,25 +197,18 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 }
 
 func waitForUserInput() (err error) {
-	// disable input buffering
-	err = exec.Command("stty", "-F", "/dev/tty", "cbreak", "min", "1").Run()
+	// save terminal state to restore later
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return fmt.Errorf("disabling input buffering: %w", err)
+		return fmt.Errorf("failed to set raw mode: %w", err)
 	}
-	// do not display entered characters on the screen
-	err = exec.Command("stty", "-F", "/dev/tty", "-echo").Run()
-	if err != nil {
-		return fmt.Errorf("suppress entered characters: %w", err)
-	}
-	// restore the echoing state when exiting
-	defer func() {
-		err = exec.Command("stty", "-F", "/dev/tty", "echo").Run()
-	}()
+	defer term.Restore(int(os.Stdin.Fd()), oldState) // restore terminal state on exit
 
-	var b []byte = make([]byte, 1)
+	// read one byte from stdin
+	var b = make([]byte, 1)
 	_, err = os.Stdin.Read(b)
 	if err != nil {
-		return fmt.Errorf("reading byte from stdin: %w", err)
+		return fmt.Errorf("failed to read byte: %w", err)
 	}
 	return nil
 }
