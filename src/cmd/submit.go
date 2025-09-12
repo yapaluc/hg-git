@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -131,6 +132,20 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 		return nil
 	}
 
+	// If this branch has already been merged, skip it.
+	prData, err := fetchPRFromBranchDescription(stackEntry.node)
+	if err != nil {
+		return fmt.Errorf(
+			"fetching PR from branch description of branch %q: %w",
+			stackEntry.branchName,
+			err,
+		)
+	}
+	if prData != nil && prData.State == "MERGED" {
+		sp.FinalMSG = prefix + "(merged)\n"
+		return nil
+	}
+
 	wasPushed, err := pushBranch(stackEntry.branchName, cfg, sp)
 	if err != nil {
 		return fmt.Errorf("pushing branch %q: %w", stackEntry.branchName, err)
@@ -174,6 +189,8 @@ func processBranch(cfg submitCfg, stackEntry *stackEntry) error {
 			finalStatus = statusCreated
 		case statusUpdated, statusSkipped:
 			finalStatus = statusUpdated
+		case statusCleanupNeeded:
+			finalStatus = statusCleanupNeeded
 		}
 	} else {
 		finalStatus = prStatus
@@ -235,6 +252,7 @@ var statusUnknown = status{""}
 var statusCreated = status{"created"}
 var statusSkipped = status{"skipped"}
 var statusUpdated = status{"updated"}
+var statusCleanupNeeded = status{"cleanup needed"}
 
 func createOrUpdatePR(
 	cfg submitCfg,
@@ -412,8 +430,8 @@ func updatePR(
 	}
 
 	sp.Suffix = " updating PR fields"
-	_, err = shell.Run(
-		shell.Opt{},
+	out, err := shell.Run(
+		shell.Opt{CombinedStdoutStderrOutput: true},
 		fmt.Sprintf(
 			"gh pr edit %s %s",
 			shellescape.Quote(stackEntry.branchName),
@@ -421,12 +439,18 @@ func updatePR(
 		),
 	)
 	if err != nil {
+		// Gracefully handle when the parent branch has been merged.
+		r := regexp.MustCompile("Proposed base branch '.+' was not found")
+		if r.MatchString(out) {
+			return prData.URL, statusCleanupNeeded, nil
+		}
 		return "", statusUnknown, fmt.Errorf(
 			"editing PR for branch %q: %w",
 			stackEntry.branchName,
 			err,
 		)
 	}
+
 	return prData.URL, statusUpdated, nil
 }
 
@@ -535,17 +559,45 @@ func addPRURLToBranchDescription(
 
 func getPRDataForNode(node *git.TreeNode) (*github.PullRequest, error) {
 	branchName := node.CommitMetadata.CleanedBranchNames()[0]
+
+	// Handle ignored PRs.
+	if isPrIgnored(branchName) {
+		return github.GetPRDataForIgnoredBranch(branchName), nil
+	}
+
+	// Try the branch name.
 	prData, err := github.FetchPRForBranch(branchName)
 	if err != nil {
 		return nil, fmt.Errorf("fetching PR data for branch %q: %w", branchName, err)
 	}
-
-	if prData == nil {
-		if isPrIgnored(branchName) {
-			return github.GetPRDataForIgnoredBranch(branchName), nil
-		}
-		return nil, fmt.Errorf("no PR found for branch %q", branchName)
+	if prData != nil {
+		return prData, nil
 	}
 
+	// Try the PR URL in the branch description (for merged PRs).
+	prData, err = fetchPRFromBranchDescription(node)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"fetching PR data from branch description of branch %q: %w",
+			branchName,
+			err,
+		)
+	}
+	if prData != nil {
+		return prData, nil
+	}
+
+	return nil, fmt.Errorf("no PR found for branch %q", branchName)
+}
+
+func fetchPRFromBranchDescription(node *git.TreeNode) (*github.PullRequest, error) {
+	prURL, _ := node.CommitMetadata.PRURL()
+	if prURL == "" {
+		return nil, nil
+	}
+	prData, err := github.FetchPRByURLOrNum(prURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching PR data for PR URL %q: %w", prURL, err)
+	}
 	return prData, nil
 }
