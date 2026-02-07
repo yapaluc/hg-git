@@ -178,16 +178,31 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 		for _, line := range lines {
 			color.Red("  " + line)
 		}
-		color.Red("Resolve the merge conflicts and press any character to continue.")
-		color.Red("You don't need to add files or continue the merge/rebase.")
-		err = waitForUserInput()
+
+		color.Yellow("Choose how to proceed:")
+		color.Yellow("  [o] Accept current branch (use ours for all conflicts)")
+		color.Yellow(
+			"  [any other key] Resolve manually, then continue (no need to add files or continue the merge/rebase)",
+		)
+		input, err := waitForUserInput()
 		if err != nil {
 			return fmt.Errorf("waiting for user input: %w", err)
 		}
-		color.Green("Continuing")
+
+		var cmd string
+
+		switch input {
+		case 'o', 'O':
+			color.Green("Accepting current branch for all conflicts (ours)")
+			cmd = "git checkout --ours . && git add --all && " + resolutionCommand
+		default:
+			color.Green("Continuing with manual resolution")
+			cmd = "git add --all && " + resolutionCommand
+		}
+
 		_, err = shell.Run(
 			shell.Opt{StreamOutputToStdout: true, PrintCommand: true},
-			"git add --all && "+resolutionCommand,
+			cmd,
 		)
 		if err != nil {
 			return fmt.Errorf("continuing merge/rebase: %w", err)
@@ -196,19 +211,20 @@ func maybePromptForMergeConflictResolution(resolutionCommand string) error {
 	return nil
 }
 
-func waitForUserInput() (err error) {
+func waitForUserInput() (rune, error) {
 	// save terminal state to restore later
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return fmt.Errorf("failed to set raw mode: %w", err)
+		return 0, fmt.Errorf("failed to set raw mode: %w", err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState) // restore terminal state on exit
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
 	// read one byte from stdin
-	var b = make([]byte, 1)
-	_, err = os.Stdin.Read(b)
+	var b [1]byte
+	_, err = os.Stdin.Read(b[:])
 	if err != nil {
-		return fmt.Errorf("failed to read byte: %w", err)
+		return 0, fmt.Errorf("failed to read byte: %w", err)
 	}
-	return nil
+
+	return rune(b[0]), nil
 }
